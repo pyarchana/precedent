@@ -17,6 +17,7 @@ dependencies = [
 # Kept separate so the ingest can run before the data layer is decided.
 db = [
     "sqlalchemy[asyncio]>=2.0.30",
+    "sqlalchemy-cockroachdb>=2.0.4",
     "asyncpg>=0.29",
 ]
 api = [
