@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     cockroach_dsn: str = ""
     anthropic_api_key: str = ""
 
+    openai_api_key: str = ""
+    # 1536 dimensions, matching the VECTOR columns in migration 0001. Changing
+    # the model to one with a different width means rewriting those columns.
+    embedding_model: str = "text-embedding-3-small"
+    embedding_dim: int = 1536
+
     @property
     def raw_dir(self) -> Path:
         """Absolute path to the raw staging directory."""
