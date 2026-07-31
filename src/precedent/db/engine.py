@@ -38,9 +38,21 @@ class ParsedDsn:
     connect_args: dict[str, Any]
 
 
-def parse_dsn(dsn: str) -> ParsedDsn:
-    """Split a libpq-style DSN into an asyncpg URL plus connect_args."""
-    parsed = urlparse(dsn)
+def _split(dsn: str) -> tuple[Any, dict[str, Any], dict[str, str]]:
+    """Common work: clean the string, pull out the libpq-only parameters.
+
+    Surrounding whitespace and quotes are stripped because a DSN pasted into
+    a .env file frequently arrives wrapped in them, and the resulting parse
+    failure ("scheme is expected to be postgresql") points nowhere useful.
+    """
+    cleaned = dsn.strip().strip('"').strip("'")
+    if not cleaned.startswith(("postgresql://", "postgres://")):
+        raise ValueError(
+            "COCKROACH_DSN must start with postgresql:// . "
+            f"It currently starts with {cleaned[:12]!r}."
+        )
+
+    parsed = urlparse(cleaned)
     params = {k: v[0] for k, v in parse_qs(parsed.query).items()}
 
     connect_args: dict[str, Any] = {}
@@ -63,7 +75,24 @@ def parse_dsn(dsn: str) -> ParsedDsn:
         connect_args["server_settings"] = {"options": options}
 
     keep = {k: v for k, v in params.items() if k not in _LIBPQ_ONLY}
+    return parsed, connect_args, keep
+
+
+def parse_dsn(dsn: str) -> ParsedDsn:
+    """Split a libpq-style DSN into a SQLAlchemy URL plus connect_args."""
+    parsed, connect_args, keep = _split(dsn)
     url = urlunparse(parsed._replace(scheme="cockroachdb+asyncpg", query=urlencode(keep)))
+    return ParsedDsn(url=url, connect_args=connect_args)
+
+
+def asyncpg_dsn(dsn: str) -> ParsedDsn:
+    """The same, for code that drives asyncpg directly rather than through SQLAlchemy.
+
+    Migrations need this: asyncpg rejects libpq's `sslmode` outright, so the
+    parameter has to become an SSL context passed as a keyword argument.
+    """
+    parsed, connect_args, keep = _split(dsn)
+    url = urlunparse(parsed._replace(scheme="postgresql", query=urlencode(keep)))
     return ParsedDsn(url=url, connect_args=connect_args)
 
 

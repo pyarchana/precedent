@@ -73,6 +73,33 @@ Confirm the async stack works against whatever cluster you pointed at:
 python scripts/check_async_stack.py --dsn "postgresql://root@localhost:26257/precedent?sslmode=disable"
 ```
 
+### Bulk loading embeddings
+
+Drop the vector index before a large backfill and rebuild it afterwards. Maintaining
+it incrementally across hundreds of thousands of single-row updates costs far more
+than building it once at the end. Measured on this corpus, embedding 1,024 comments
+into a 316,000 row table:
+
+| | rows/sec |
+| --- | --- |
+| Vector index present, 3 requests in flight | 9.0 |
+| Vector index dropped, 3 requests in flight | 25.2 |
+| Vector index dropped, 6 requests in flight | 57.8 |
+
+Between them that is the difference between nine hours and eighty minutes.
+
+```bash
+docker exec crdb-precedent ./cockroach sql --insecure --database=precedent --execute "DROP INDEX review_comments@idx_rc_embedding;"
+```
+
+```bash
+docker exec crdb-precedent ./cockroach sql --insecure --database=precedent --execute "CREATE VECTOR INDEX idx_rc_embedding ON review_comments (repo_id, embedding);"
+```
+
+The index definition lives in migration 0002. Dropping it for a backfill is an
+operational step, not a schema change, so it is done directly rather than by
+adding a migration.
+
 ### Driver notes
 
 Use `sqlalchemy-cockroachdb`, not the stock `postgresql+asyncpg` dialect. SQLAlchemy's

@@ -24,6 +24,7 @@ from urllib.parse import urlparse, urlunparse
 import asyncpg
 
 from precedent.config import REPO_ROOT, get_settings
+from precedent.db.engine import asyncpg_dsn
 
 log = logging.getLogger("precedent.migrate")
 
@@ -49,13 +50,13 @@ def discover(directory: Path) -> list[tuple[str, Path]]:
 
 async def _create_database_if_missing(dsn: str) -> None:
     """Connect to the cluster's default database to CREATE DATABASE."""
-    parsed = urlparse(dsn)
+    parsed = urlparse(dsn.strip().strip('"').strip("'"))
     target = parsed.path.lstrip("/")
     if not target:
         raise ValueError(f"DSN has no database name: {dsn}")
 
-    admin_dsn = urlunparse(parsed._replace(path="/defaultdb"))
-    conn = await asyncpg.connect(admin_dsn)
+    admin = asyncpg_dsn(urlunparse(parsed._replace(path="/defaultdb")))
+    conn = await asyncpg.connect(admin.url, **admin.connect_args)
     try:
         # Identifier cannot be parameterised; the value comes from our own DSN,
         # not from user input, and is quoted to survive odd names.
@@ -66,7 +67,8 @@ async def _create_database_if_missing(dsn: str) -> None:
 
 
 async def apply_all(dsn: str, *, directory: Path = MIGRATIONS_DIR, dry_run: bool = False) -> int:
-    conn = await asyncpg.connect(dsn)
+    target = asyncpg_dsn(dsn)
+    conn = await asyncpg.connect(target.url, **target.connect_args)
     try:
         await conn.execute(BOOTSTRAP)
         applied = {
