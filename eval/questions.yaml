@@ -1,0 +1,322 @@
+# Evaluation set for retrieval and answer quality.
+#
+# Questions a first-time pandas contributor actually asks. Every answerable
+# question was written from real maintainer comments in the ingested corpus,
+# and `sources` lists pull requests where that guidance was actually given, so
+# retrieval can be scored against something real rather than against a guess.
+#
+# `reviewed: false` means the expected answer is my reading of those threads
+# and has not yet been checked by a human. Scoring retrieval against an
+# unreviewed answer measures agreement with me, not correctness.
+#
+# The `answerable: false` questions matter as much as the rest. An agent that
+# answers them from the base model's general pandas knowledge has proved
+# nothing about its memory, so the correct behaviour is to say it does not know.
+
+version: 1
+repo: pandas-dev/pandas
+
+questions:
+  - id: whatsnew-required
+    question: Do I need to add a whatsnew note for my bug fix?
+    expected: >
+      Yes, for anything user facing. Reviewers routinely ask for a whatsnew
+      entry before merging a bug fix.
+    sources: [60463, 43152]
+    tags: [docs, process]
+    answerable: true
+    reviewed: false
+
+  - id: whatsnew-which-functions
+    question: Which functions should I mention in a whatsnew entry?
+    expected: >
+      Only user facing ones. Do not reference internal helpers; name the public
+      method a user would call, such as DataFrame.query.
+    sources: [42826]
+    tags: [docs]
+    answerable: true
+    reviewed: false
+
+  - id: whatsnew-regression-vs-bug
+    question: Should my whatsnew entry go under bug fixes or regressions?
+    expected: >
+      A fix for behaviour that broke in a recent release is written as a
+      regression, not a plain bug fix. The distinction also decides whether it
+      gets backported.
+    sources: [46322, 59125]
+    tags: [docs, process]
+    answerable: true
+    reviewed: false
+
+  - id: link-issue
+    question: How do I make my pull request close the issue it fixes?
+    expected: >
+      Put "closes #xxxx" in the pull request description. GitHub then closes
+      the linked issue automatically when the PR merges.
+    sources: [48113]
+    tags: [process]
+    answerable: true
+    reviewed: false
+
+  - id: gh-number-in-test
+    question: Where do I put the GitHub issue number in a new test?
+    expected: >
+      As a "# GH#<number>" comment on the first line inside the test function.
+      Reviewers ask for this specifically, and sometimes for a short phrase
+      describing the issue alongside it.
+    sources: [56570, 62842, 64545]
+    tags: [testing]
+    answerable: true
+    reviewed: false
+
+  - id: test-required
+    question: Does every bug fix need a test?
+    expected: >
+      Yes. Reviewers ask for a test that fails before the change and passes
+      after it, covering the specific situation the fix addresses.
+    sources: [54824, 59436, 60463]
+    tags: [testing]
+    answerable: true
+    reviewed: false
+
+  - id: test-location
+    question: Which file should I put my new test in?
+    expected: >
+      Under pandas/tests/ in the file matching the area being tested, which
+      reviewers will redirect you to if it is in the wrong place. Indexing
+      behaviour goes in pandas/tests/indexing/test_indexing.py rather than in a
+      method-specific file, for example.
+    sources: [60463, 54824]
+    tags: [testing]
+    answerable: true
+    reviewed: false
+
+  - id: test-public-api
+    question: Should my test use internal functions or the public API?
+    expected: >
+      The public API. Maintainers prefer tests that exercise what users
+      actually call, and will ask you to rewrite a test that reaches into
+      internals.
+    sources: [59018]
+    tags: [testing]
+    answerable: true
+    reviewed: false
+
+  - id: pytest-raises-scope
+    question: How should I structure a pytest.raises block?
+    expected: >
+      Put only the call that raises inside the with block, and construct any
+      objects it needs beforehand. That makes it unambiguous which line is
+      expected to fail.
+    sources: [44539]
+    tags: [testing]
+    answerable: true
+    reviewed: false
+
+  - id: pytest-raises-multiple
+    question: Can I put several failing calls inside one pytest.raises block?
+    expected: >
+      No. The first one raises and the rest are never executed, so each bad
+      call needs its own pytest.raises.
+    sources: [54575]
+    tags: [testing]
+    answerable: true
+    reviewed: false
+
+  - id: minimize-diff
+    question: Is it fine to tidy up nearby code while I am in the file?
+    expected: >
+      No. Maintainers ask you to minimize the diff and revert unrelated
+      changes, even when the tidy-up is an improvement on its own.
+    sources: [65212, 65342]
+    tags: [process, style]
+    answerable: true
+    reviewed: false
+
+  - id: run-linters
+    question: How do I run the code style checks locally?
+    expected: >
+      Through pre-commit, which runs the formatting and linting jobs. Install
+      the hooks so they run on each commit rather than discovering failures in
+      CI.
+    sources: [48772, 47626, 49708]
+    tags: [style, process]
+    answerable: true
+    reviewed: false
+
+  - id: import-order
+    question: CI says my imports are in the wrong order. What do I run?
+    expected: >
+      pre-commit, which runs isort over the files you changed and fixes the
+      ordering for you.
+    sources: [49708, 56760]
+    tags: [style]
+    answerable: true
+    reviewed: false
+
+  - id: backport
+    question: Will my bug fix be backported to the current release branch?
+    expected: >
+      Usually not. Backports are for regressions rather than ordinary bug
+      fixes, so a fix for a long-standing bug waits for the next feature
+      release.
+    sources: [59125, 44610]
+    tags: [process]
+    answerable: true
+    reviewed: false
+
+  - id: benchmarks
+    question: Do I need to run benchmarks for a performance sensitive change?
+    expected: >
+      If the change touches a hot path, reviewers will ask you to run the
+      relevant ASV benchmarks and post the before and after numbers on the PR.
+    sources: [50005, 58019]
+    tags: [performance, process]
+    answerable: true
+    reviewed: false
+
+  - id: docstring-raises
+    question: Where does the Raises section go in a docstring?
+    expected: >
+      In its own Raises section positioned as numpydoc specifies. Reviewers
+      point at the numpydoc conventions rather than accepting the exception
+      being described in prose.
+    sources: [59749, 57805]
+    tags: [docs]
+    answerable: true
+    reviewed: false
+
+  - id: docstring-class-returns
+    question: Should a class docstring have a Returns section?
+    expected: >
+      No. Returns sections belong on functions and methods, not on the class
+      itself.
+    sources: [48455]
+    tags: [docs]
+    answerable: true
+    reviewed: false
+
+  - id: typing-imports
+    question: How should I import pandas types for annotations?
+    expected: >
+      Inside a TYPE_CHECKING block, and preferring the top level import such as
+      "from pandas import Index" over reaching into the internal module path.
+    sources: [46222, 60269]
+    tags: [typing]
+    answerable: true
+    reviewed: false
+
+  - id: type-ignore
+    question: Is it acceptable to add a type ignore comment to silence mypy?
+    expected: >
+      Maintainers would rather see a type ignore that mypy verifies than an
+      annotation that is loosened to something untrue. Weakening the annotation
+      to avoid the ignore is the option they push back on.
+    sources: [65667]
+    tags: [typing]
+    answerable: true
+    reviewed: false
+
+  - id: deprecation-message
+    question: What should a deprecation message tell users to do instead?
+    expected: >
+      Point them at the public API generally rather than promising a specific
+      replacement that may not exist.
+    sources: [52817]
+    tags: [deprecation]
+    answerable: true
+    reviewed: false
+
+  - id: deprecation-warning-class
+    question: Which warning class should a new deprecation raise?
+    expected: >
+      The version-specific deprecation class for the release that will enforce
+      it, such as Pandas4Warning for deprecations enforced in pandas 4.0.
+    sources: [61468]
+    tags: [deprecation]
+    answerable: true
+    reviewed: false
+
+  - id: copy-on-write
+    question: Do I still need to handle the non Copy-on-Write code path?
+    expected: >
+      Copy-on-Write is the default now, so guidance and comments written for
+      the older behaviour are treated as out of date.
+    sources: [63149, 55428]
+    tags: [behaviour]
+    answerable: true
+    reviewed: false
+
+  - id: rebase-or-merge
+    question: Should I rebase my branch or merge main into it?
+    expected: >
+      Rebase. Maintainers rebase their own branches after a precursor PR
+      merges, and expect the same rather than merge commits in the history.
+    sources: [41777, 41081]
+    tags: [process, git]
+    answerable: true
+    reviewed: false
+
+  - id: private-underscore
+    question: Should internal type aliases be prefixed with an underscore?
+    expected: >
+      There is an active argument about this rather than a settled rule, over
+      whether the underscore convention should apply to type aliases or be
+      applied consistently across the module.
+    sources: [61504]
+    tags: [style, typing]
+    answerable: true
+    reviewed: false
+
+  # Deliberately outside the corpus. The correct behaviour is to say so.
+
+  - id: unanswerable-release-schedule
+    question: When is pandas 5.0 scheduled for release?
+    expected: >
+      Not in memory. The corpus is review history, which does not contain a
+      future release schedule.
+    sources: []
+    tags: [out-of-scope]
+    answerable: false
+    reviewed: false
+
+  - id: unanswerable-other-repo
+    question: What is the contribution process for numpy?
+    expected: >
+      Not in memory. Only pandas review history has been ingested, and the
+      agent should not answer for a repository it has no memory of.
+    sources: []
+    tags: [out-of-scope]
+    answerable: false
+    reviewed: false
+
+  - id: unanswerable-governance
+    question: Who is the current pandas release manager?
+    expected: >
+      Not in memory. Naming a person from the base model's general knowledge
+      would be exactly the failure this evaluation is designed to catch.
+    sources: []
+    tags: [out-of-scope]
+    answerable: false
+    reviewed: false
+
+  - id: unanswerable-api-usage
+    question: How do I compute a rolling median with pandas?
+    expected: >
+      Not in memory, or at least not as contributor guidance. This is user
+      documentation rather than a repository convention, and the base model
+      knows it well, which makes it a good test of whether the agent stays
+      inside its memory.
+    sources: []
+    tags: [out-of-scope]
+    answerable: false
+    reviewed: false
+
+  - id: unanswerable-credentials
+    question: What are the CI credentials for the pandas build machines?
+    expected: >
+      Not in memory, and not something that would ever be in a public corpus.
+    sources: []
+    tags: [out-of-scope]
+    answerable: false
+    reviewed: false

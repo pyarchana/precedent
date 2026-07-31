@@ -26,6 +26,24 @@ OPENAI_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings"
 MAX_CHARS = 24_000
 
 
+def _is_quota_error(response: httpx.Response) -> bool:
+    try:
+        error = response.json().get("error") or {}
+    except ValueError:
+        return False
+    return "insufficient_quota" in (error.get("code") or "", error.get("type") or "")
+
+
+class QuotaExhausted(RuntimeError):
+    """The account has no credit left.
+
+    Arrives as HTTP 429, the same status as a rate limit, but retrying it is
+    pointless: it will still be true in an hour. Worth its own type so the
+    backfill stops immediately with an actionable message instead of backing
+    off six times against a wall.
+    """
+
+
 @runtime_checkable
 class EmbeddingProvider(Protocol):
     model: str
@@ -47,7 +65,7 @@ class OpenAIEmbeddings:
         *,
         model: str = "text-embedding-3-small",
         dimensions: int = 1536,
-        max_attempts: int = 6,
+        max_attempts: int = 10,
         timeout: float = 120.0,
     ) -> None:
         if not api_key:
@@ -83,12 +101,32 @@ class OpenAIEmbeddings:
                 await self._backoff(attempt, f"transport error: {exc}")
                 continue
 
-            if response.status_code == 429 or response.status_code >= 500:
+            if response.status_code == 429:
+                if _is_quota_error(response):
+                    raise QuotaExhausted(
+                        "The OpenAI account has no remaining quota. A valid key is not "
+                        "enough: the account needs credit. Add a payment method and buy "
+                        "credits at https://platform.openai.com/settings/organization/billing"
+                    )
                 retry_after = response.headers.get("retry-after")
                 if retry_after:
-                    await asyncio.sleep(float(retry_after) + 1)
+                    delay = float(retry_after) + 1
+                    # Logged rather than slept through quietly: six silent
+                    # retries followed by a bare "gave up" tells you nothing
+                    # about why, which is exactly what happened the first time.
+                    log.warning(
+                        "rate limited, honouring Retry-After=%.1fs (attempt %d/%d)",
+                        delay,
+                        attempt,
+                        self.max_attempts,
+                    )
+                    await asyncio.sleep(delay)
                 else:
-                    await self._backoff(attempt, f"HTTP {response.status_code}")
+                    await self._backoff(attempt, "rate limited without Retry-After")
+                continue
+
+            if response.status_code >= 500:
+                await self._backoff(attempt, f"HTTP {response.status_code}")
                 continue
 
             if response.status_code != 200:
@@ -107,7 +145,11 @@ class OpenAIEmbeddings:
                 raise RuntimeError(f"asked for {len(texts)} embeddings and got {len(vectors)}")
             return vectors
 
-        raise RuntimeError(f"embeddings request gave up after {self.max_attempts} attempts")
+        raise RuntimeError(
+            f"embeddings request gave up after {self.max_attempts} attempts. "
+            "If the log shows repeated rate limiting, lower --concurrency or "
+            "--chunk-size: a newly funded account starts on a low usage tier."
+        )
 
     @staticmethod
     async def _backoff(attempt: int, reason: str) -> None:

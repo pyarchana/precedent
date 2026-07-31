@@ -8,6 +8,10 @@ data/
 *.pem
 *.crt
 
+# Working notes: schedule, spend, and what was deferred. Kept out of the
+# public repo. The technical decisions in here belong in the README instead.
+docs/progress.md
+
 # Python
 __pycache__/
 *.py[cod]

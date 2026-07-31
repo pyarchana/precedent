@@ -285,6 +285,9 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s %(levelname)-7s | %(message)s",
         stream=sys.stdout,
     )
+    # One line per HTTP request buries the progress output.
+    for noisy in ("httpx", "httpcore"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
     return asyncio.run(
         backfill(
