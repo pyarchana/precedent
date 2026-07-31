@@ -29,7 +29,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from precedent.config import get_settings
 from precedent.db.engine import create_engine
 from precedent.db.retry import with_retry
-from precedent.embed.provider import MAX_CHARS, EmbeddingProvider, OpenAIEmbeddings
+from precedent.embed.provider import (
+    EmbeddingProvider,
+    OpenAIEmbeddings,
+    truncate_for_embedding,
+)
 from precedent.embed.vector import encode
 
 log = logging.getLogger("precedent.embed")
@@ -71,8 +75,12 @@ UPDATE_EMBEDDING = text("""
 
 
 def content_hash(body: str) -> str:
-    """Hash what is actually sent to the API, truncation included."""
-    return hashlib.sha256(body[:MAX_CHARS].encode("utf-8")).hexdigest()
+    """Hash what is actually sent to the API, truncation included.
+
+    Hashing the untruncated body would let two comments that differ only past
+    the cut point claim different cache entries for an identical request.
+    """
+    return hashlib.sha256(truncate_for_embedding(body).encode("utf-8")).hexdigest()
 
 
 async def _fetch_repo_id(engine: AsyncEngine, owner: str, name: str) -> str:

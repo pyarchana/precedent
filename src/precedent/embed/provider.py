@@ -19,11 +19,40 @@ log = logging.getLogger(__name__)
 
 OPENAI_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings"
 
-# text-embedding-3-small accepts 8191 tokens per input. Counting tokens exactly
-# would mean another dependency, so this caps on characters well below the
-# limit. Review comments are far shorter than this; PR descriptions are what
-# occasionally run long.
-MAX_CHARS = 24_000
+# text-embedding-3-small rejects inputs over 8192 tokens outright, with a 400
+# that fails the whole request and therefore the whole batch.
+#
+# Counting characters instead of tokens does not work here. The usual "four
+# characters per token" rule holds for prose, but this corpus is full of diff
+# hunks, tracebacks and code, which tokenize closer to two characters per
+# token. A 24,000 character cap looked like a comfortable 6,000 tokens and was
+# in fact over the limit for exactly the comments most worth embedding.
+MAX_TOKENS = 8_000
+
+# Fallback only, for when tiktoken is unavailable. Deliberately pessimistic.
+MAX_CHARS = 12_000
+
+try:
+    import tiktoken
+
+    _ENCODING = tiktoken.get_encoding("cl100k_base")
+except Exception:  # noqa: BLE001 - any failure here just means the fallback
+    _ENCODING = None
+
+
+def truncate_for_embedding(value: str) -> str:
+    """Cut text down to something the embeddings endpoint will accept.
+
+    Short inputs are returned unchanged, which keeps their content hash stable
+    across changes to this function, so the embedding cache survives a fix here
+    and only long comments have to be paid for again.
+    """
+    if _ENCODING is None:
+        return value[:MAX_CHARS]
+    tokens = _ENCODING.encode(value, disallowed_special=())
+    if len(tokens) <= MAX_TOKENS:
+        return value
+    return _ENCODING.decode(tokens[:MAX_TOKENS])
 
 
 def _is_quota_error(response: httpx.Response) -> bool:
@@ -90,7 +119,7 @@ class OpenAIEmbeddings:
 
         payload = {
             "model": self.model,
-            "input": [t[:MAX_CHARS] for t in texts],
+            "input": [truncate_for_embedding(t) for t in texts],
             "dimensions": self.dimensions,
         }
 
@@ -98,7 +127,8 @@ class OpenAIEmbeddings:
             try:
                 response = await self._client.post(OPENAI_EMBEDDINGS_URL, json=payload)
             except httpx.TransportError as exc:
-                await self._backoff(attempt, f"transport error: {exc}")
+                # repr, because these often stringify to nothing at all.
+                await self._backoff(attempt, f"transport error: {exc!r}")
                 continue
 
             if response.status_code == 429:

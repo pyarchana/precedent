@@ -33,6 +33,8 @@ async def transform(
     name: str,
     batch_size: int,
     max_pages: int | None,
+    from_page: int,
+    to_page: int | None,
 ) -> int:
     store = RawStore(raw_dir, f"{owner}/{name}")
     engine = create_engine(dsn)
@@ -49,7 +51,7 @@ async def transform(
         repo_id = await ensure_repo(engine, owner, name)
         log.info("repo %s/%s is %s", owner, name, repo_id)
 
-        for _path, envelope in store.iter_pages():
+        for _path, envelope in store.iter_pages(start=from_page, stop=to_page):
             if max_pages is not None and pages >= max_pages:
                 break
 
@@ -103,6 +105,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--name", default=settings.target_repo_name)
     parser.add_argument("--batch-size", type=int, default=1000)
     parser.add_argument("--max-pages", type=int, default=None)
+    parser.add_argument(
+        "--from-page",
+        type=int,
+        default=1,
+        help="First staged page to load. Skipping already-loaded pages avoids "
+        "the expensive update path on rows that have not changed.",
+    )
+    parser.add_argument("--to-page", type=int, default=None)
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
 
@@ -123,6 +133,8 @@ def main(argv: list[str] | None = None) -> int:
             name=args.name,
             batch_size=args.batch_size,
             max_pages=args.max_pages,
+            from_page=args.from_page,
+            to_page=args.to_page,
         )
     )
 

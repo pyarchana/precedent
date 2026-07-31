@@ -79,8 +79,23 @@ class RawStore:
         with gzip.open(self.page_path(page_number), "rt", encoding="utf-8") as fh:
             return json.load(fh)
 
-    def iter_pages(self):
-        for path in sorted(self.root.glob("page_*.json.gz")):
+    def page_numbers(self) -> list[int]:
+        return sorted(
+            int(p.name.split("_")[1].split(".")[0]) for p in self.root.glob("page_*.json.gz")
+        )
+
+    def iter_pages(self, *, start: int = 1, stop: int | None = None):
+        """Yield staged pages in order, optionally over a range.
+
+        The range matters for re-runs. Every row in an already-loaded page
+        takes the ON CONFLICT DO UPDATE path, which is far more expensive than
+        a fresh insert, so reloading the whole corpus to pick up new pages is
+        the wrong default once the corpus is large.
+        """
+        for number in self.page_numbers():
+            if number < start or (stop is not None and number > stop):
+                continue
+            path = self.page_path(number)
             with gzip.open(path, "rt", encoding="utf-8") as fh:
                 yield path, json.load(fh)
 

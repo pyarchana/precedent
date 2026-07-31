@@ -11,6 +11,9 @@ dependencies = [
     "python-dotenv>=1.0",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
+    # Exact token counting. Character-based truncation is not a workable
+    # substitute against an 8192 token hard limit on a corpus full of code.
+    "tiktoken>=0.7",
 ]
 
 [project.optional-dependencies]
