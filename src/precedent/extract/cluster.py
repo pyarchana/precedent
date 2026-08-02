@@ -34,8 +34,19 @@ log = logging.getLogger(__name__)
 # Beyond this, neighbours share vocabulary rather than a convention.
 MAX_DISTANCE = 0.95
 
+# Below this, the comments are the *same text* repeated: a canned maintainer
+# reply, or the pull request template checklist pasted into eight PRs. Those
+# clusters look like overwhelming evidence and are nothing of the sort. In a
+# 300 cluster run they produced seven "rules", five of which were the same
+# template restated.
+MIN_DISTANCE = 0.15
+
 # Below this many separate pull requests, it is one conversation.
 MIN_DISTINCT_PRS = 3
+
+# One person repeating themselves is an opinion. A convention needs more than
+# one voice, and this also catches boilerplate posted by a single maintainer.
+MIN_DISTINCT_AUTHORS = 2
 
 SELECT_SEEDS = text("""
     SELECT id
@@ -104,12 +115,34 @@ class Cluster:
 
     @property
     def mean_distance(self) -> float:
-        if not self.comments:
-            return 0.0
-        return sum(c.distance for c in self.comments) / len(self.comments)
+        """Mean distance of the neighbours, excluding the seed.
 
-    def is_worth_extracting(self, *, min_distinct_prs: int = MIN_DISTINCT_PRS) -> bool:
-        return self.distinct_prs >= min_distinct_prs
+        The seed is returned at distance zero, so including it biased the mean
+        down by roughly 1/k and made every cluster look tighter than it was.
+        """
+        others = [c.distance for c in self.comments if c.id != self.seed_id]
+        if not others:
+            return 0.0
+        return sum(others) / len(others)
+
+    def rejection_reason(
+        self,
+        *,
+        min_distinct_prs: int = MIN_DISTINCT_PRS,
+        min_distinct_authors: int = MIN_DISTINCT_AUTHORS,
+        min_distance: float = MIN_DISTANCE,
+    ) -> str | None:
+        """Why this cluster is not worth paying to extract, or None if it is."""
+        if self.distinct_prs < min_distinct_prs:
+            return "too few distinct pull requests"
+        if self.distinct_authors < min_distinct_authors:
+            return "a single author"
+        if self.mean_distance < min_distance:
+            return "duplicated text, not a convention"
+        return None
+
+    def is_worth_extracting(self, **kwargs) -> bool:
+        return self.rejection_reason(**kwargs) is None
 
     def render(self, *, max_chars: int = 900) -> str:
         """The cluster as the model will see it."""

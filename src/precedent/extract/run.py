@@ -161,8 +161,9 @@ async def extract(
                     break
                 if cluster.seed_id in claimed:
                     continue
-                if not cluster.is_worth_extracting(min_distinct_prs=min_distinct_prs):
-                    reasons["too few distinct pull requests"] += 1
+                rejection = cluster.rejection_reason(min_distinct_prs=min_distinct_prs)
+                if rejection is not None:
+                    reasons[f"skipped: {rejection}"] += 1
                     continue
 
                 cluster_text = cluster.render()
