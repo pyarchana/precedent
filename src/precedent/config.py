@@ -24,8 +24,10 @@ class Settings(BaseSettings):
 
     raw_data_dir: Path = Field(default=Path("data/raw"))
 
-    aws_region: str = "us-east-1"
+    aws_region: str = "ap-south-1"
     s3_raw_bucket: str = ""
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
 
     cockroach_dsn: str = ""
     anthropic_api_key: str = ""
