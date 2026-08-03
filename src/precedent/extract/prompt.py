@@ -58,9 +58,16 @@ Reply with JSON only, no prose, in exactly this shape:
 }
 
 Rules for the fields:
-  - "statement" must be actionable and specific to this repository. Not \
-"write good tests" but "put the GitHub issue number as a comment on the first \
-line of a new test".
+  - "statement" must be checkable. Someone reading a diff should be able to \
+say whether it was followed or not. Not "follow the NumPy dtype hierarchy for \
+consistency", which no one can act on, but "put the GitHub issue number as a \
+comment on the first line of a new test".
+  - Name the concrete thing wherever the comments do: the file, the command, \
+the decorator, the function. A rule that names nothing is usually a summary \
+of a discussion rather than a convention.
+  - Do not restate a checklist that appears in the comments verbatim. \
+Contribution templates and canned replies are not conventions learned from \
+review, they are boilerplate.
   - "scope_pattern" is required when scope is "directory" or "file", and null \
 otherwise.
   - "supporting_prs" must only list pull requests whose comments actually \

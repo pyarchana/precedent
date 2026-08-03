@@ -28,8 +28,9 @@ from sqlalchemy import text
 from precedent.config import REPO_ROOT, get_settings
 from precedent.db.engine import create_engine
 from precedent.extract.cluster import build_cluster, fetch_seeds
+from precedent.extract.confidence import score
 from precedent.extract.llm import BudgetExhausted, ChatClient, QuotaExhausted
-from precedent.extract.prompt import build_messages
+from precedent.extract.prompt import SYSTEM, build_messages
 
 log = logging.getLogger("precedent.extract")
 
@@ -37,8 +38,14 @@ CACHE_DIR = REPO_ROOT / "data" / "extract_cache"
 OUTPUT_DIR = REPO_ROOT / "data" / "extracted"
 
 
+# The prompt is part of the cache key. Without it, editing the prompt and
+# re-running would silently serve answers produced by the previous one, which
+# would make every prompt iteration unmeasurable.
+PROMPT_FINGERPRINT = hashlib.sha256(SYSTEM.encode("utf-8")).hexdigest()[:12]
+
+
 def cache_key(model: str, cluster_text: str) -> str:
-    digest = hashlib.sha256(f"{model}\n{cluster_text}".encode()).hexdigest()
+    digest = hashlib.sha256(f"{model}\n{PROMPT_FINGERPRINT}\n{cluster_text}".encode()).hexdigest()
     return digest[:32]
 
 
@@ -60,7 +67,14 @@ def save_cached(model: str, cluster_text: str, result: dict) -> None:
 
 def render_markdown(records: list[dict]) -> str:
     """A readable dump, because the point of this pass is human review."""
-    kept = [r for r in records if r["result"].get("is_convention")]
+    # Strongest first: the audit has limited attention and should spend it
+    # where the system is most confident, because that is what the agent will
+    # actually cite.
+    kept = sorted(
+        (r for r in records if r["result"].get("is_convention")),
+        key=lambda r: r.get("confidence", 0),
+        reverse=True,
+    )
     refused = [r for r in records if not r["result"].get("is_convention")]
 
     lines = [
@@ -88,12 +102,16 @@ def render_markdown(records: list[dict]) -> str:
         scope = r.get("scope", "?")
         pattern = f" `{r['scope_pattern']}`" if r.get("scope_pattern") else ""
         prs = ", ".join(f"#{p}" for p in r.get("supporting_prs") or [])
+        parts = record.get("confidence_parts", {})
+        lines.append(f"- confidence: **{record.get('confidence', 0):.2f}**")
         lines.append(f"- scope: **{scope}**{pattern}")
         lines.append(f"- supporting PRs: {prs or 'none listed'}")
         lines.append(
-            f"- cluster: {record['distinct_prs']} PRs, "
+            f"- evidence: {record['distinct_prs']} PRs, "
             f"{record['distinct_authors']} authors, "
-            f"mean distance {record['mean_distance']:.3f}"
+            f"independence {parts.get('independence', 0):.2f}, "
+            f"persistence {parts.get('persistence', 0):.2f}, "
+            f"recency {parts.get('recency', 0):.2f}"
         )
         lines.append("")
 
@@ -180,12 +198,29 @@ async def extract(
                     save_cached(model, cluster_text, result)
 
                 claimed |= cluster.comment_ids
+
+                dates = [c.created_at for c in cluster.comments if c.created_at]
+                breakdown = score(
+                    distinct_authors=cluster.distinct_authors,
+                    distinct_prs=cluster.distinct_prs,
+                    first_evidence_at=min(dates) if dates else None,
+                    last_evidence_at=max(dates) if dates else None,
+                )
                 records.append(
                     {
                         "seed_id": cluster.seed_id,
                         "distinct_prs": cluster.distinct_prs,
                         "distinct_authors": cluster.distinct_authors,
                         "mean_distance": cluster.mean_distance,
+                        "first_evidence_at": min(dates).isoformat() if dates else None,
+                        "last_evidence_at": max(dates).isoformat() if dates else None,
+                        "confidence": breakdown.confidence,
+                        "confidence_parts": {
+                            "independence": breakdown.independence,
+                            "repetition": breakdown.repetition,
+                            "persistence": breakdown.persistence,
+                            "recency": breakdown.recency,
+                        },
                         "comment_ids": sorted(cluster.comment_ids),
                         "result": result,
                     }
