@@ -36,6 +36,23 @@ against the database rather than assumed:
 
 So the thresholds below are in L2, and the gap between 0.60 and 0.92 is what
 makes 0.75 a safe place to draw the line.
+
+## Why distance alone cannot decide a merge
+
+Embeddings place opposites close together. "Use single quotes for strings in
+Cython files" and "Use double quotes for strings in Cython files" sit 0.32
+apart, far nearer than the two genuine duplicates at 0.60, because they share
+a subject, a structure and almost every word. They are also exact opposites.
+
+An earlier version merged on distance alone. Feeding it a rule that reversed
+an existing convention did not supersede that convention, it was absorbed as
+*further evidence for* it, raising the confidence of the rule it contradicted.
+
+That is precisely the failure the correction loop must not have: a
+maintainer's correction would strengthen the thing being corrected. So
+distance now only selects candidates to compare, and a model decides whether
+they agree, conflict, or merely resemble each other. Merges are rare enough
+that the cost of asking is negligible.
 """
 
 from __future__ import annotations
@@ -55,15 +72,16 @@ from precedent.extract.confidence import score
 
 log = logging.getLogger(__name__)
 
-# Below this L2 distance, two statements say the same thing. Sits in the gap
-# between the observed duplicate pair at 0.60 and the nearest genuinely
-# distinct pair at 0.92.
-MERGE_DISTANCE = 0.75
+# Distance decides which rules are worth comparing. It does NOT decide the
+# outcome. See the note on antonyms below.
+#
+# Anything nearer than this is a candidate for merging or superseding; beyond
+# it, rules are about different things and comparing them is wasted money.
+CONSIDER_DISTANCE = 1.10
 
-# Between the merge threshold and this, rules are related enough that one may
-# contradict the other. Beyond it they are simply about different things and
-# asking an LLM to compare them is wasted money.
-CONTRADICTION_WINDOW = 1.10
+# Nearer than this, a rule is close enough that merging it without asking
+# would be actively dangerous rather than merely imprecise.
+MERGE_DISTANCE = 0.75
 
 Outcome = Literal["inserted", "merged", "superseded"]
 
@@ -87,6 +105,9 @@ class PersistResult:
     rule_id: str
     distance: float | None = None
     superseded_rule_id: str | None = None
+    # Returned so a caller can look for contradictions without paying to
+    # embed the same statement a second time.
+    statement_vector: str | None = None
 
 
 # Two-stage, for the same reason as comment search: any predicate in the same
@@ -156,6 +177,26 @@ UPDATE_COUNTS = text("""
     WHERE repo_id = :repo_id AND id = :rule_id
 """)
 
+# Rules near enough to be about the same subject, but not near enough to be
+# the same rule. Excludes the rule just inserted, which is at distance zero
+# from itself.
+NEIGHBOURS_IN_BAND = text("""
+    SELECT id, statement, last_evidence_at, distance
+    FROM (
+        SELECT id, statement, last_evidence_at, status,
+               embedding <-> CAST(:query AS VECTOR(1536)) AS distance
+        FROM rules
+        WHERE repo_id = :repo_id
+        ORDER BY embedding <-> CAST(:query AS VECTOR(1536))
+        LIMIT 10
+    )
+    WHERE status = 'active'
+      AND distance > :lo
+      AND distance <= :hi
+      AND id != :exclude_id
+    ORDER BY distance
+""")
+
 MARK_SUPERSEDED = text("""
     UPDATE rules
     SET status = 'superseded',
@@ -219,9 +260,17 @@ async def persist_rule(
     *,
     repo_id: str,
     candidate: Candidate,
+    judge=None,
+    consider_distance: float = CONSIDER_DISTANCE,
     merge_distance: float = MERGE_DISTANCE,
 ) -> PersistResult:
-    """Insert, or merge into the nearest rule that already says this."""
+    """Insert, merge into an equivalent rule, or supersede one it contradicts.
+
+    `judge` compares two statements and returns "same", "contradicts" or
+    "compatible". Without one, nothing is merged: distance alone cannot tell
+    agreement from contradiction, and guessing wrong turns a correction into
+    reinforcement of the error.
+    """
     vector = encode((await provider.embed([candidate.statement]))[0])
 
     async with engine.connect() as conn:
@@ -231,18 +280,93 @@ async def persist_rule(
             .first()
         )
 
-    if nearest is not None and float(nearest["distance"]) <= merge_distance:
-        rule_id = str(nearest["id"])
-        await _record_evidence(engine, repo_id, rule_id, candidate.comment_ids)
-        await _recompute(engine, repo_id, rule_id)
-        log.info(
-            "merged into %s at distance %.3f: %s",
-            rule_id[:8],
-            nearest["distance"],
-            candidate.statement[:70],
-        )
-        return PersistResult(outcome="merged", rule_id=rule_id, distance=float(nearest["distance"]))
+    distance = float(nearest["distance"]) if nearest is not None else None
 
+    if nearest is not None and distance <= consider_distance:
+        if judge is None:
+            log.warning(
+                "no judge available; inserting rather than merging at distance %.3f: %s",
+                distance,
+                candidate.statement[:60],
+            )
+        else:
+            old_date = nearest["last_evidence_at"]
+            verdict = await judge(
+                old_statement=nearest["statement"],
+                new_statement=candidate.statement,
+                old_date=old_date.date().isoformat() if old_date else "unknown",
+                new_date=candidate.last_evidence_at.date().isoformat()
+                if candidate.last_evidence_at
+                else "unknown",
+            )
+            relation = verdict.get("relation")
+
+            if relation == "same":
+                rule_id = str(nearest["id"])
+                await _record_evidence(engine, repo_id, rule_id, candidate.comment_ids)
+                await _recompute(engine, repo_id, rule_id)
+                log.info(
+                    "merged into %s at distance %.3f: %s",
+                    rule_id[:8],
+                    distance,
+                    candidate.statement[:70],
+                )
+                return PersistResult(
+                    outcome="merged",
+                    rule_id=rule_id,
+                    distance=distance,
+                    statement_vector=vector,
+                )
+
+            if relation == "contradicts":
+                # Recency decides direction. If the existing rule is at least
+                # as current, the new one is the outdated view and goes in as
+                # an ordinary rule rather than displacing anything.
+                newer = (
+                    candidate.last_evidence_at
+                    and old_date
+                    and candidate.last_evidence_at > old_date
+                )
+                if newer:
+                    log.info(
+                        "contradiction at distance %.3f, superseding %s: %s",
+                        distance,
+                        str(nearest["id"])[:8],
+                        verdict.get("reason", "")[:80],
+                    )
+                    result = await _insert_new(engine, repo_id, candidate, vector, provider)
+                    await supersede(
+                        engine,
+                        repo_id=repo_id,
+                        old_rule_id=str(nearest["id"]),
+                        replacement_rule_id=result.rule_id,
+                        reason=verdict.get("reason", "contradicted by more recent evidence"),
+                    )
+                    return PersistResult(
+                        outcome="superseded",
+                        rule_id=result.rule_id,
+                        distance=distance,
+                        superseded_rule_id=str(nearest["id"]),
+                        statement_vector=vector,
+                    )
+
+    result = await _insert_new(engine, repo_id, candidate, vector, provider)
+    return PersistResult(
+        outcome="inserted",
+        rule_id=result.rule_id,
+        distance=distance,
+        statement_vector=vector,
+    )
+
+
+async def _insert_new(
+    engine: AsyncEngine,
+    repo_id: str,
+    candidate: Candidate,
+    vector: str,
+    provider: EmbeddingProvider,
+) -> PersistResult:
+    """Write a genuinely new rule, with its evidence and derived confidence."""
     breakdown = score(
         distinct_authors=candidate.distinct_authors,
         distinct_prs=candidate.distinct_prs,
@@ -277,12 +401,7 @@ async def persist_rule(
     rule_id = await with_retry(insert, description="insert rule")
     await _record_evidence(engine, repo_id, rule_id, candidate.comment_ids)
     await _recompute(engine, repo_id, rule_id)
-
-    return PersistResult(
-        outcome="inserted",
-        rule_id=rule_id,
-        distance=float(nearest["distance"]) if nearest is not None else None,
-    )
+    return PersistResult(outcome="inserted", rule_id=rule_id, statement_vector=vector)
 
 
 async def supersede(

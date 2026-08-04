@@ -27,6 +27,8 @@ from sqlalchemy import text
 from precedent.config import get_settings
 from precedent.db.engine import create_engine
 from precedent.embed.provider import OpenAIEmbeddings
+from precedent.extract import contradiction
+from precedent.extract.llm import BudgetExhausted, ChatClient
 from precedent.extract.persist import Candidate, persist_rule
 
 log = logging.getLogger("precedent.load_rules")
@@ -57,6 +59,20 @@ async def main_async(args: argparse.Namespace) -> int:
         model=settings.embedding_model,
         dimensions=settings.embedding_dim,
     )
+
+    # Contradiction checking is the only paid part of loading, and it fires
+    # rarely, so it gets its own small ceiling and can be turned off entirely.
+    client = None
+    judge = None
+    if not args.no_supersede:
+        client = ChatClient(settings.openai_api_key, model=args.model, max_spend=args.max_spend)
+
+        async def judge(**kwargs):
+            try:
+                return await client.complete_json(contradiction.build_messages(**kwargs))
+            except BudgetExhausted as exc:
+                log.warning("contradiction checks stopped: %s", exc)
+                return {"relation": "compatible", "reason": "budget exhausted"}
 
     owner, _, name = args.repo.partition("/")
     outcomes: Counter[str] = Counter()
@@ -94,14 +110,20 @@ async def main_async(args: argparse.Namespace) -> int:
                 last_evidence_at=parse_dt(record.get("last_evidence_at")),
             )
 
-            outcome = await persist_rule(engine, provider, repo_id=repo_id, candidate=candidate)
-            outcomes[outcome.outcome] += 1
+            result = await persist_rule(
+                engine, provider, repo_id=repo_id, candidate=candidate, judge=judge
+            )
+            outcomes[result.outcome] += 1
 
     finally:
         await provider.aclose()
+        if client is not None:
+            await client.aclose()
         await engine.dispose()
 
     log.info("outcomes: %s", dict(outcomes))
+    if client is not None:
+        log.info("contradiction checks: %d calls, $%.4f", client.usage.calls, client.spent)
     return 0
 
 
@@ -111,6 +133,13 @@ def main() -> int:
     parser.add_argument("path", help="A rules-*.jsonl file from an extraction run.")
     parser.add_argument("--dsn", default=settings.cockroach_dsn or None)
     parser.add_argument("--repo", default=settings.repo_slug)
+    parser.add_argument("--model", default="gpt-4o-mini")
+    parser.add_argument("--max-spend", type=float, default=0.05)
+    parser.add_argument(
+        "--no-supersede",
+        action="store_true",
+        help="Skip contradiction checking, the only step here that costs money.",
+    )
     args = parser.parse_args()
 
     if not args.dsn:
