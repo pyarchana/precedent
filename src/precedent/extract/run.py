@@ -228,6 +228,21 @@ async def extract(
                 if not result.get("is_convention"):
                     reasons[result.get("reason", "no reason given")[:60]] += 1
 
+                # A run over thousands of clusters takes hours. Without this
+                # there is no way to tell progress from a hang except by
+                # counting files in the cache directory, which is what I
+                # ended up doing.
+                if len(records) % 100 == 0:
+                    kept_so_far = sum(1 for r in records if r["result"].get("is_convention"))
+                    log.info(
+                        "%d/%d clusters | %d conventions | $%.4f of $%.2f",
+                        len(records),
+                        limit,
+                        kept_so_far,
+                        client.spent,
+                        max_spend,
+                    )
+
     except QuotaExhausted as exc:
         log.error("%s", exc)
     finally:

@@ -1,0 +1,116 @@
+# Rule audit
+#
+# For each rule below, decide whether a pandas maintainer would agree that the
+# project actually holds it. Judge from the evidence quotes, not from whether
+# the sentence sounds sensible.
+#
+# Set verdict to one of:
+#   agree      the project holds this. Leave it active.
+#   disagree   it does not. Applying will retire it.
+#   unsure     leave it active but flag it. Worth a second opinion.
+#
+# The note field is free text and is kept in this file rather than the
+# database, so the reasoning survives in version control.
+#
+# Then: python scripts/audit_rules.py --apply
+rules:
+- id: 5a77c1a1-c04f-411d-acf9-a8f56446b4dc
+  statement: Use @pytest.mark.parametrize to parameterize tests for better clarity and maintainability.
+  scope: testing
+  scope_pattern: null
+  confidence: 0.984
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 21481
+    author: mroeschke
+    file: pandas/tests/indexes/test_base.py
+    quote: Could you combine this test with the one below with pytest.mark.parametrize over skip_index_keys
+      and the empty list and generator?
+  - pr: 30446
+    author: WillAyd
+    file: pandas/tests/indexes/multi/test_drop.py
+    quote: I think the point of this is the raise a KeyError for the example specified - can you model
+      the test to use pytest.raises instead? Should see other examples of this in the code base
+- id: 066a4eba-7cc0-4dd8-8166-b8626ba6b3b8
+  statement: 'Reference the issue number in a comment at the beginning of each test function using the
+    format # GH <issue number>.'
+  scope: file
+  scope_pattern: pandas/tests/%
+  confidence: 0.979
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 14446
+    author: jorisvandenbossche
+    file: pandas/tests/frame/test_convert_to.py
+    quote: 'Can you add this as a comment instead of docstring? (docstrings hide the test name in the
+      output of nosetests) Also just the number is fine, like # GH 13937'
+  - pr: 14967
+    author: jorisvandenbossche
+    file: pandas/tests/test_internals.py
+    quote: 'Can you turn this into a normal comment (with #)? Otherwise the test name does not show up
+      in the nosetests output. You can also add the issue number'
+- id: fe2d18b3-326d-477d-869b-5e2bdf3a0fb1
+  statement: In tests, always construct the expected output explicitly and use tm.assert_frame_equal(result,
+    expected) for assertions.
+  scope: testing
+  scope_pattern: null
+  confidence: 0.969
+  evidence_count: 16
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 28540
+    author: WillAyd
+    file: pandas/tests/reshape/test_pivot.py
+    quote: Can you construct the expected output and use tm.assert_frame_equal(result, expected instead?
+      You should see that in a lot of other tests
+  - pr: 29372
+    author: mroeschke
+    file: pandas/tests/frame/test_dtypes.py
+    quote: For these two assertions, can you construct the expected dataframe result and use tm.assert_frame_equal?
+      result = ... expected = ... tm.assert_frame_equal(result, expected)
+- id: e31408e3-a9f9-4cf0-aede-6a9dead869fd
+  statement: For performance-related changes, contributors must run ASV benchmarks and report the results
+    to ensure no regressions are introduced.
+  scope: process
+  scope_pattern: null
+  confidence: 0.942
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 13277
+    author: jorisvandenbossche
+    file: null
+    quote: '@MaximilianR Can you run some of the asv benchmarks to check there is no impact on performance?
+      (also the plotting benchmarks, we have see regressions there in the past due to changes in period
+      index)'
+  - pr: 21274
+    author: WillAyd
+    file: null
+    quote: Typically for performance-related changes we look for an ASV to measure and track over time.
+      Can you add one to asv_bench/benchmarks/frame_methods.py and post the results of the benchmark here?
+- id: 24dd3095-387a-4314-97dd-0fd01b829ee3
+  statement: Follow the NumPy dtype hierarchy for consistency in dtype implementation.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.915
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 7434
+    author: cpcloud
+    file: null
+    quote: '@jreback i think ''integer'' and ''int'' should mean different things to be consistent with
+      numpy; i''m also not really too keen on ''numeric'' since that''s not a dtype, but i''m allowing
+      ''number'''
+  - pr: 7434
+    author: cpcloud
+    file: null
+    quote: i was trying to limit the variation and keep consistency with the numpy dtype hierarchy rather
+      than fragment into another convention that's slightly different from numpy
