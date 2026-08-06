@@ -20,8 +20,9 @@ rules:
   scope_pattern: null
   confidence: 1.0
   evidence_count: 88
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: 88 evidence items but the quotes are a grab bag; the first is about commit avatars, not issue
+    numbers. Over-broad cluster.
   evidence:
   - pr: 16025
     author: jorisvandenbossche
@@ -50,7 +51,7 @@ rules:
   scope_pattern: null
   confidence: 0.999
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 8153
@@ -85,7 +86,7 @@ rules:
   scope_pattern: null
   confidence: 0.999
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 8037
@@ -120,7 +121,7 @@ rules:
   scope_pattern: null
   confidence: 0.998
   evidence_count: 61
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 23382
@@ -152,7 +153,7 @@ rules:
   scope_pattern: null
   confidence: 0.998
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 23368
@@ -184,7 +185,7 @@ rules:
   scope_pattern: null
   confidence: 0.998
   evidence_count: 24
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 15615
@@ -214,7 +215,7 @@ rules:
   scope_pattern: null
   confidence: 0.996
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 13602
@@ -246,7 +247,7 @@ rules:
   scope_pattern: null
   confidence: 0.995
   evidence_count: 24
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 15422
@@ -278,7 +279,7 @@ rules:
   scope_pattern: null
   confidence: 0.995
   evidence_count: 16
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 21645
@@ -311,7 +312,7 @@ rules:
   scope_pattern: null
   confidence: 0.995
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 13571
@@ -347,8 +348,8 @@ rules:
   scope_pattern: null
   confidence: 0.995
   evidence_count: 44
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: Both evidence quotes are merge congratulations and say nothing about whatsnew.
   evidence:
   - pr: 8022
     author: jorisvandenbossche
@@ -379,7 +380,7 @@ rules:
   scope_pattern: null
   confidence: 0.995
   evidence_count: 41
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 18460
@@ -412,7 +413,7 @@ rules:
   scope_pattern: pandas/tests/%
   confidence: 0.995
   evidence_count: 16
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 16955
@@ -445,7 +446,7 @@ rules:
   scope_pattern: null
   confidence: 0.994
   evidence_count: 34
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 19268
@@ -482,7 +483,7 @@ rules:
   scope_pattern: pandas/**/*.py
   confidence: 0.994
   evidence_count: 20
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 5199
@@ -513,8 +514,8 @@ rules:
   scope_pattern: null
   confidence: 0.994
   evidence_count: 29
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: Evidence is about test disagreements and moved lines, not pre-commit hooks.
   evidence:
   - pr: 16386
     author: jorisvandenbossche
@@ -548,7 +549,7 @@ rules:
   scope_pattern: pandas/tests/frame/methods/%
   confidence: 0.994
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 12399
@@ -580,7 +581,7 @@ rules:
   scope_pattern: null
   confidence: 0.994
   evidence_count: 24
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 34767
@@ -612,8 +613,9 @@ rules:
   scope_pattern: null
   confidence: 0.994
   evidence_count: 13
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: Statement is probably true (pandas did introduce Pandas4Warning) but the cited evidence is about
+    the PDEP process, so it is unsupported here.
   evidence:
   - pr: 47444
     author: datapythonista
@@ -648,7 +650,7 @@ rules:
   scope_pattern: null
   confidence: 0.994
   evidence_count: 42
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 20497
@@ -683,7 +685,7 @@ rules:
   scope_pattern: null
   confidence: 0.994
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 14446
@@ -713,7 +715,7 @@ rules:
   scope_pattern: null
   confidence: 0.994
   evidence_count: 28
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 9110
@@ -747,7 +749,7 @@ rules:
   scope_pattern: null
   confidence: 0.993
   evidence_count: 23
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 7714
@@ -780,7 +782,7 @@ rules:
   scope_pattern: null
   confidence: 0.992
   evidence_count: 22
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 28319
@@ -809,7 +811,7 @@ rules:
   scope_pattern: null
   confidence: 0.992
   evidence_count: 63
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 5615
@@ -846,8 +848,9 @@ rules:
   scope_pattern: null
   confidence: 0.991
   evidence_count: 13
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: 'Evidence contradicts the rule: the quote tells the contributor to put ''Closes gh-12306'' in
+    the message.'
   evidence:
   - pr: 12306
     author: gfyoung
@@ -877,7 +880,7 @@ rules:
   scope_pattern: null
   confidence: 0.99
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 17414
@@ -910,7 +913,7 @@ rules:
   scope_pattern: null
   confidence: 0.989
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 23885
@@ -942,8 +945,9 @@ rules:
   scope_pattern: doc/source/whatsnew/%
   confidence: 0.988
   evidence_count: 32
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: 'Evidence contradicts the rule: quote #6875 says adding a changelog entry is ''not really necessary''
+    for that fix.'
   evidence:
   - pr: 6875
     author: jorisvandenbossche
@@ -975,8 +979,8 @@ rules:
   scope_pattern: null
   confidence: 0.988
   evidence_count: 8
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: 'Quote #6417 is about stray commits and unrelated to linting before pushing.'
   evidence:
   - pr: 6417
     author: jorisvandenbossche
@@ -1004,7 +1008,7 @@ rules:
   scope_pattern: null
   confidence: 0.987
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 21889
@@ -1037,7 +1041,7 @@ rules:
   scope_pattern: null
   confidence: 0.987
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 19023
@@ -1070,8 +1074,8 @@ rules:
   scope_pattern: null
   confidence: 0.987
   evidence_count: 16
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: Evidence is verbatim pull request template text, not review guidance.
   evidence:
   - pr: 49078
     author: mroeschke
@@ -1108,7 +1112,7 @@ rules:
   scope_pattern: null
   confidence: 0.987
   evidence_count: 37
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 15907
@@ -1142,8 +1146,8 @@ rules:
   scope_pattern: null
   confidence: 0.987
   evidence_count: 16
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: Evidence is about docstring quoting style and percentage arguments, nothing to do with DeprecationWarning.
   evidence:
   - pr: 5533
     author: jorisvandenbossche
@@ -1180,8 +1184,8 @@ rules:
   scope_pattern: null
   confidence: 0.986
   evidence_count: 88
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: Evidence is verbatim pull request template text. Also a near duplicate of 7df9fca6 and 80e6b0c2.
   evidence:
   - pr: 45787
     author: phofl
@@ -1215,7 +1219,7 @@ rules:
   scope_pattern: doc/source/whatsnew/%
   confidence: 0.984
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 19118
@@ -1247,8 +1251,8 @@ rules:
   scope_pattern: null
   confidence: 0.983
   evidence_count: 26
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: Evidence is about line length and constructing expected frames, not pre-commit.
   evidence:
   - pr: 5124
     author: jorisvandenbossche
@@ -1283,8 +1287,8 @@ rules:
   scope_pattern: pandas/core/%
   confidence: 0.983
   evidence_count: 8
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: 'Quote #22423 is about example size, not the summary line.'
   evidence:
   - pr: 22423
     author: WillAyd
@@ -1316,8 +1320,8 @@ rules:
   scope_pattern: null
   confidence: 0.982
   evidence_count: 115
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: Evidence is verbatim pull request template text. Near duplicate of 7df9fca6, f3b94461, f773bb79.
   evidence:
   - pr: 47399
     author: phofl
@@ -1354,8 +1358,8 @@ rules:
   scope_pattern: null
   confidence: 0.982
   evidence_count: 47
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: Evidence is verbatim pull request template text. Near duplicate of 80e6b0c2.
   evidence:
   - pr: 48711
     author: phofl
@@ -1392,8 +1396,8 @@ rules:
   scope_pattern: null
   confidence: 0.981
   evidence_count: 47
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: Evidence is verbatim pull request template text and does not mention test comments.
   evidence:
   - pr: 45812
     author: mroeschke
@@ -1426,7 +1430,7 @@ rules:
   scope_pattern: pandas/tests/arrays/%
   confidence: 0.979
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 33985
@@ -1457,8 +1461,8 @@ rules:
   scope_pattern: null
   confidence: 0.979
   evidence_count: 8
-  verdict: unreviewed
-  note: ''
+  verdict: unsure
+  note: Evidence is verbatim pull request template text.
   evidence:
   - pr: 47331
     author: phofl
@@ -1494,7 +1498,7 @@ rules:
   scope_pattern: null
   confidence: 0.979
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 24398
@@ -1523,7 +1527,7 @@ rules:
   scope_pattern: pandas/tests/%
   confidence: 0.979
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 14446
@@ -1554,7 +1558,7 @@ rules:
   scope_pattern: pandas/tests/%
   confidence: 0.979
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 14446
@@ -1584,7 +1588,7 @@ rules:
   scope_pattern: null
   confidence: 0.979
   evidence_count: 8
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 15461
@@ -1621,7 +1625,7 @@ rules:
   scope_pattern: null
   confidence: 0.976
   evidence_count: 15
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 7336
@@ -1654,7 +1658,7 @@ rules:
   scope_pattern: null
   confidence: 0.975
   evidence_count: 15
-  verdict: unreviewed
+  verdict: agree
   note: ''
   evidence:
   - pr: 4722

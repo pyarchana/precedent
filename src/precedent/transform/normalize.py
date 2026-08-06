@@ -35,10 +35,40 @@ KNOWN_BOTS = frozenset(
 )
 
 
+# Lines from the pull request template. A description that is mostly these is
+# a filled-in form, not a maintainer teaching anyone anything.
+#
+# This was found by auditing extracted rules. 2,585 comments, one per pull
+# request and about 4% of the corpus, are this template. Six of the top fifty
+# rules were built on it, producing statements like "always include the GitHub
+# issue number in the pull request description" whose supporting evidence is a
+# checklist rather than anything a reviewer said. Filtering at the cluster
+# level did not catch it: in a cluster of eighty items the template mixes with
+# real comments and the distances no longer look degenerate.
+TEMPLATE_MARKERS = (
+    "replace xxxx with the",
+    "tests added and passed if fixing a bug",
+    "all code checks passed",
+    "added type annotations to new arguments",
+    "added an entry in the latest doc/source/whatsnew",
+)
+
+# One marker can appear in a genuine comment quoting the template. Two or more
+# means the body is the form itself.
+TEMPLATE_THRESHOLD = 2
+
+
 class RejectReason:
     BOT_AUTHOR = "bot_author"
     EMPTY_BODY = "empty_body"
     NO_AUTHOR = "no_author"
+    PR_TEMPLATE = "pr_template"
+
+
+def is_pr_template(body: str) -> bool:
+    """True when the body is a filled-in pull request template."""
+    lowered = body.lower()
+    return sum(marker in lowered for marker in TEMPLATE_MARKERS) >= TEMPLATE_THRESHOLD
 
 
 @dataclass(slots=True)
@@ -124,6 +154,9 @@ def _emit(
     text = (body or "").strip()
     if not text:
         return RejectRecord(node_id, RejectReason.EMPTY_BODY, pr_number, login)
+
+    if is_pr_template(text):
+        return RejectRecord(node_id, RejectReason.PR_TEMPLATE, pr_number, login)
 
     association = node.get("authorAssociation") or "NONE"
     return CommentRecord(

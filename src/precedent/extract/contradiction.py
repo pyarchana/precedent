@@ -30,14 +30,21 @@ Reply with JSON only:
   "reason": "one sentence"
 }
 
-  - "same": they express the same convention in different words. A \
-contributor following one is automatically following the other.
+  - "same": they express the same convention. Answer "same" whenever a \
+contributor following one is automatically following the other, even if the \
+wording, the level of detail, or the emphasis differs. "Include the issue \
+number in the pull request description" and "include the issue number in the \
+first line of your pull request description" are the same convention stated \
+with different precision, not two conventions. Prefer "same" over \
+"compatible" when the two are about the same specific action.
   - "contradicts": a contributor cannot follow both. One instructs something \
 the other forbids, or they prescribe different answers to the same question. \
 This includes a rule that has been overtaken by a change in the project, \
 where the older instruction is no longer what the project does.
-  - "compatible": they are about related matters but can both be followed. \
-This is the common answer.
+  - "compatible": they are about genuinely different actions, even if they \
+share a subject. "Put the issue number in the pull request description" and \
+"put the issue number in a comment on the test" are compatible: both can be \
+followed and they ask for different things in different places.
 
 Be strict about "contradicts". Two rules about the same file, or the same \
 API, or the same part of the process, are usually compatible: being about the \

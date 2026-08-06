@@ -12,6 +12,7 @@ from precedent.transform.normalize import (
     RejectReason,
     is_bot,
     is_maintainer,
+    is_pr_template,
     normalize_page,
 )
 
@@ -211,3 +212,45 @@ class TestNormalizePage:
         kept, _ = normalize_page(_page(_pr(number=1), _pr(number=2)))
         ids = [r.github_node_id for r in kept]
         assert len(ids) == len(set(ids))
+
+
+class TestPullRequestTemplate:
+    """The template is a form, not review guidance.
+
+    Auditing the extracted rules found six of the top fifty built on this
+    text, producing statements whose supporting evidence was a checklist. It
+    is 2,585 comments, one per pull request, about 4% of the corpus.
+    """
+
+    def test_filled_in_template_is_rejected(self):
+        body = (
+            "closes #12345 (Replace xxxx with the Github issue number)\n"
+            "Tests added and passed if fixing a bug or adding a new feature\n"
+            "All code checks passed.\n"
+            "Added type annotations to new arguments/methods/functions.\n"
+            "Added an entry in the latest doc/source/whatsnew/v2.0.0.rst file."
+        )
+        assert is_pr_template(body)
+
+    def test_a_comment_quoting_one_line_is_kept(self):
+        # A reviewer reminding someone about one checklist item is real
+        # guidance, so a single marker must not be enough to reject.
+        body = (
+            "Please make sure all code checks passed before I take another "
+            "look, the linter is failing on this file."
+        )
+        assert not is_pr_template(body)
+
+    def test_ordinary_review_comment_is_kept(self):
+        body = "Can you use the match parameter of pytest.raises to check the message?"
+        assert not is_pr_template(body)
+
+    def test_rejected_with_its_own_reason(self):
+        pr = _pr(
+            bodyText=(
+                "closes #999 (Replace xxxx with the Github issue number). All code checks passed."
+            )
+        )
+        kept, dropped = normalize_page(_page(pr))
+        assert not kept
+        assert dropped[0].reason == RejectReason.PR_TEMPLATE

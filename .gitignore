@@ -2,6 +2,12 @@
 data/
 *.json.gz
 
+# Design prototype for the chat UI, and the files unpacked from it. Held back
+# until the real demo is built against the live agent, because the prototype
+# runs on invented rules and pull request numbers.
+demo/index.html
+demo/_extracted/
+
 # Secrets
 .env
 .env.local
