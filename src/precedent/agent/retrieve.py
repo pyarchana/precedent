@@ -187,7 +187,7 @@ async def recall(
     # contributor may ask something no convention addresses but that a
     # maintainer once answered directly.
     hits = await search_comments(
-        engine, provider, repo_id=repo_id, question_vector=vector, k=comment_k
+        engine, provider, repo_id=repo_id, query_vector=vector, k=comment_k
     )
 
     log.info(
