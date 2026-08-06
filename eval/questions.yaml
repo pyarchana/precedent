@@ -25,7 +25,7 @@ questions:
     sources: [60463, 43152]
     tags: [docs, process]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: whatsnew-which-functions
     question: Which functions should I mention in a whatsnew entry?
@@ -35,7 +35,7 @@ questions:
     sources: [42826]
     tags: [docs]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: whatsnew-regression-vs-bug
     question: Should my whatsnew entry go under bug fixes or regressions?
@@ -46,7 +46,7 @@ questions:
     sources: [46322, 59125]
     tags: [docs, process]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: link-issue
     question: How do I make my pull request close the issue it fixes?
@@ -56,7 +56,7 @@ questions:
     sources: [48113]
     tags: [process]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: gh-number-in-test
     question: Where do I put the GitHub issue number in a new test?
@@ -67,7 +67,7 @@ questions:
     sources: [56570, 62842, 64545]
     tags: [testing]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: test-required
     question: Does every bug fix need a test?
@@ -77,7 +77,7 @@ questions:
     sources: [54824, 59436, 60463]
     tags: [testing]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: test-location
     question: Which file should I put my new test in?
@@ -89,7 +89,7 @@ questions:
     sources: [60463, 54824]
     tags: [testing]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: test-public-api
     question: Should my test use internal functions or the public API?
@@ -100,7 +100,7 @@ questions:
     sources: [59018]
     tags: [testing]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: pytest-raises-scope
     question: How should I structure a pytest.raises block?
@@ -111,7 +111,7 @@ questions:
     sources: [44539]
     tags: [testing]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: pytest-raises-multiple
     question: Can I put several failing calls inside one pytest.raises block?
@@ -121,7 +121,7 @@ questions:
     sources: [54575]
     tags: [testing]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: minimize-diff
     question: Is it fine to tidy up nearby code while I am in the file?
@@ -131,7 +131,7 @@ questions:
     sources: [65212, 65342]
     tags: [process, style]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: run-linters
     question: How do I run the code style checks locally?
@@ -142,7 +142,7 @@ questions:
     sources: [48772, 47626, 49708]
     tags: [style, process]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: import-order
     question: CI says my imports are in the wrong order. What do I run?
@@ -152,7 +152,7 @@ questions:
     sources: [49708, 56760]
     tags: [style]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: backport
     question: Will my bug fix be backported to the current release branch?
@@ -163,7 +163,7 @@ questions:
     sources: [59125, 44610]
     tags: [process]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: benchmarks
     question: Do I need to run benchmarks for a performance sensitive change?
@@ -173,7 +173,7 @@ questions:
     sources: [50005, 58019]
     tags: [performance, process]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: docstring-raises
     question: Where does the Raises section go in a docstring?
@@ -184,7 +184,7 @@ questions:
     sources: [59749, 57805]
     tags: [docs]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: docstring-class-returns
     question: Should a class docstring have a Returns section?
@@ -194,7 +194,7 @@ questions:
     sources: [48455]
     tags: [docs]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: typing-imports
     question: How should I import pandas types for annotations?
@@ -204,7 +204,7 @@ questions:
     sources: [46222, 60269]
     tags: [typing]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: type-ignore
     question: Is it acceptable to add a type ignore comment to silence mypy?
@@ -215,7 +215,7 @@ questions:
     sources: [65667]
     tags: [typing]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: deprecation-message
     question: What should a deprecation message tell users to do instead?
@@ -225,7 +225,7 @@ questions:
     sources: [52817]
     tags: [deprecation]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: deprecation-warning-class
     question: Which warning class should a new deprecation raise?
@@ -235,7 +235,7 @@ questions:
     sources: [61468]
     tags: [deprecation]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: copy-on-write
     question: Do I still need to handle the non Copy-on-Write code path?
@@ -245,7 +245,7 @@ questions:
     sources: [63149, 55428]
     tags: [behaviour]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: rebase-or-merge
     question: Should I rebase my branch or merge main into it?
@@ -255,7 +255,7 @@ questions:
     sources: [41777, 41081]
     tags: [process, git]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   - id: private-underscore
     question: Should internal type aliases be prefixed with an underscore?
@@ -266,7 +266,7 @@ questions:
     sources: [61504]
     tags: [style, typing]
     answerable: true
-    reviewed: false
+    reviewed: true
 
   # Deliberately outside the corpus. The correct behaviour is to say so.
 
@@ -278,7 +278,7 @@ questions:
     sources: []
     tags: [out-of-scope]
     answerable: false
-    reviewed: false
+    reviewed: true
 
   - id: unanswerable-other-repo
     question: What is the contribution process for numpy?
@@ -288,7 +288,7 @@ questions:
     sources: []
     tags: [out-of-scope]
     answerable: false
-    reviewed: false
+    reviewed: true
 
   - id: unanswerable-governance
     question: Who is the current pandas release manager?
@@ -298,7 +298,7 @@ questions:
     sources: []
     tags: [out-of-scope]
     answerable: false
-    reviewed: false
+    reviewed: true
 
   - id: unanswerable-api-usage
     question: How do I compute a rolling median with pandas?
@@ -310,7 +310,7 @@ questions:
     sources: []
     tags: [out-of-scope]
     answerable: false
-    reviewed: false
+    reviewed: true
 
   - id: unanswerable-credentials
     question: What are the CI credentials for the pandas build machines?
@@ -319,4 +319,4 @@ questions:
     sources: []
     tags: [out-of-scope]
     answerable: false
-    reviewed: false
+    reviewed: true

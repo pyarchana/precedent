@@ -108,20 +108,28 @@ async def search_comments(
     provider: EmbeddingProvider,
     *,
     repo_id: str,
-    query: str,
+    query: str | None = None,
+    query_vector: str | None = None,
     k: int = 10,
     maintainers_only: bool = False,
     path_prefix: str | None = None,
     kinds: tuple[str, ...] | None = None,
     overfetch: int = DEFAULT_OVERFETCH,
 ) -> SearchResult:
-    """Find the comments most similar to a natural-language question."""
-    vector = (await provider.embed([query]))[0]
+    """Find the comments most similar to a natural-language question.
+
+    Accepts an already-encoded `query_vector` so a caller that has embedded
+    the question for another purpose does not pay to embed it twice.
+    """
+    if query_vector is None:
+        if query is None:
+            raise ValueError("pass either query or query_vector")
+        query_vector = encode((await provider.embed([query]))[0])
 
     conditions: list[str] = []
     params: dict[str, object] = {
         "repo_id": repo_id,
-        "query": encode(vector),
+        "query": query_vector,
         "k": k,
     }
 

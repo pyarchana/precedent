@@ -14,26 +14,1540 @@
 #
 # Then: python scripts/audit_rules.py --apply
 rules:
+- id: 7df9fca6-901d-489d-8ddd-fae742c4af4a
+  statement: Always include the GitHub issue number in the pull request description.
+  scope: process
+  scope_pattern: null
+  confidence: 1.0
+  evidence_count: 88
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 16025
+    author: jorisvandenbossche
+    file: null
+    quote: 'If you look at the commit you added in this PR, it doesn''t have your icon, and if you look
+      at the commit: 7e4b9dc, the question mark next to the author gives some more explanation'
+  - pr: 39638
+    author: MarcoGorelli
+    file: null
+    quote: 'Thanks @ftrihardjo - could you make the title the same as the issue please, and put the issue
+      number in the pull request body (near closes #) ?'
+  - pr: 40952
+    author: mroeschke
+    file: null
+    quote: Looks pretty good, thanks for catching these. Could you add a whatsnew note for v1.3? Can have
+      3 separate entries all linking to you original issue
+  - pr: 46447
+    author: mroeschke
+    file: null
+    quote: Thanks for the pull request, but IMO these docstrings/comments are already clear and the changes
+      don't significantly improve the status quo. Additionally appears there's an errant import as well.
+      Going to close, but we would appreciate a contribution to any issue labeled good first issue. Thanks.
+- id: c38f0fb5-a4e5-4deb-b3d6-1b23b8e8e91c
+  statement: Use `tm.assert_series_equal` for comparing Series in tests.
+  scope: testing
+  scope_pattern: null
+  confidence: 0.999
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 8153
+    author: jorisvandenbossche
+    file: pandas/tools/tests/test_tile.py
+    quote: 'assert_series_equal does not check for the orderedness of the Categorical at the moment, so
+      the test will not check that part of the issue: In [125]: c1 = pd.Series(pd.Categorical(list(''abcdaba''),
+      ordered=True)) In [127]: c2 = pd.Series(pd.Categorical(list(''abcdaba''), ordered=False)) In [129]:
+      pd.util.testing.assert_se'
+  - pr: 18087
+    author: jorisvandenbossche
+    file: null
+    quote: 'That being said, array_equal, similar to Series.equal only checks values and shape, but not
+      dtype, which is what assert_numpy_array_equal does. Yes, but as I said above, IMO if the reason
+      that you want assert_series/numpy_array_equal to fail is not because the values differ but because
+      the dtype (or name, ..) differs, '
+  - pr: 26272
+    author: jschendel
+    file: pandas/tests/io/parser/test_dtypes.py
+    quote: 'FWIW I can get assert_series_equal to work if check_exact=True is passed. My guess is that
+      the float conversion happens due to defaulting to checking equality up to a given precision: In
+      [1]: import pandas as pd; pd.__version__ Out[1]: ''0.25.0.dev0+476.g9feb3ad92c'' In [2]: ser1 =
+      pd.Series([1556559573141592653, 1556559'
+  - pr: 37844
+    author: MarcoGorelli
+    file: pandas/_testing.py
+    quote: Suggested change >>> a = pd.Series([1,2,3,4]) >>> b = pd.Series([1,2,3,4]) >>> assert_series_equal(a,b)
+      >>> a = pd.Series([1, 2, 3, 4]) >>> b = pd.Series([1, 2, 3, 4]) >>> assert_series_equal(a, b)
+- id: 190199ba-5270-4cbb-b215-6d5d772b0293
+  statement: Ensure that docstrings for subclasses match the parent class's docstrings where applicable.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.999
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 8037
+    author: sinhrks
+    file: null
+    quote: Some refactoring which should not affects to output. Made DataFrame.plot and Series.plot should
+      have consistent docstring except differences.
+  - pr: 22641
+    author: datapythonista
+    file: null
+    quote: The changes look great. I added some comments, mainly related to the original docstring, that
+      I think would make them follow our standards and be more clear. Besides the comments, I think the
+      previous examples were failing the doctests, and yours pass, so we should be able to stop skipping
+      these docstrings in ci/doctes
+  - pr: 28835
+    author: WillAyd
+    file: null
+    quote: 'Was going to do a larger refactor but this diff looks more confusing than it actually is,
+      so figured I''d stop here for readability. All I''ve done in this PR is: Remove NDFrameGroupBy,
+      consolidating it''s methods into DataFrameGroupBy Merge NDFrameGroupBy.aggregate into DataFrameGroupBy.aggregate
+      (the latter previously c'
+  - pr: 57553
+    author: jbrockmendel
+    file: null
+    quote: 'closes #57032 (Replace xxxx with the GitHub issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added type annotations to new arguments/methods/functions.
+      Added an entry in the latest doc/source/whatsnew/vX.X.X.rst file if fixing a bug or adding a new
+      feature. Many subcl'
+- id: 75cf9816-5f9f-410b-ba15-86ed38cb12d7
+  statement: Always add type annotations to new arguments, methods, and functions in the codebase.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.998
+  evidence_count: 61
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 23382
+    author: jbrockmendel
+    file: null
+    quote: Mostly changing ndarray to memoryviews where possible. A few notation cleanups around pointer
+      types. Adds some extra type annotations, using py3-syntax where feasible.
+  - pr: 26089
+    author: WillAyd
+    file: null
+    quote: 'More typing cleanups Original failures: pandas/core/groupby/ops.py:13: error: Module ''pandas._libs''
+      has no attribute ''groupby'' pandas/core/groupby/ops.py:13: error: Module ''pandas._libs'' has no
+      attribute ''reduction'' pandas/core/groupby/groupby.py:22: error: Module ''pandas._libs'' has no
+      attribute ''groupby'' pandas/core/g'
+  - pr: 30398
+    author: WillAyd
+    file: pandas/io/formats/csvs.py
+    quote: 'Suggested change header: Union[bool, Sequence[str]] = True, header: Union[bool, Sequence[Hashable]]
+      = True, Yea the docstring says str but we really allow almost any hashable object as a column label,
+      so just be mindful of that for annotations'
+  - pr: 30151
+    author: WillAyd
+    file: null
+    quote: Few more comments. I don't want to go overboard on annotations so those in particular aren't
+      blockers, but generally if subtypes can be added for anything they would be preferred
+- id: 0942e3f4-a0f7-4227-b75b-9cd7abca281a
+  statement: Use Cython type declarations in function signatures instead of Python type hints.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.998
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 23368
+    author: gfyoung
+    file: null
+    quote: '@jbrockmendel : Given the amount of work you have done cleaning up the internals, I''m starting
+      to think that it would be good to add something to the contribution docs about writing good Cython
+      code (so that I won''t be asking every time why you make the changes that you do 🙂 ). What do you
+      think?'
+  - pr: 24932
+    author: WillAyd
+    file: null
+    quote: '@jbrockmendel 2. Replaced type hints with cython type declaration in function signatures Might
+      have this backwards but thought we were moving towards doing this, not away. See #22283'
+  - pr: 29597
+    author: jorisvandenbossche
+    file: null
+    quote: '@jbrockmendel I moved it to cython (well, still mostly copy paste of the python version into
+      the cython file) and let missing functions recognize this (isna), so feedback on that part is very
+      welcome'
+  - pr: 39867
+    author: WillAyd
+    file: pandas/_libs/groupby_mode_helper.pxi.in
+    quote: To @jbrockmendel point a lot of this can be simplified if using fused types instead of a template;
+      we've started to move to that in most other places in Cython
+- id: fa579d6d-5d3b-40f5-a9b2-331c4d640c2d
+  statement: Always include a 'whatsnew' entry when making changes that will be part of a release.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.998
+  evidence_count: 24
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 15615
+    author: gfyoung
+    file: null
+    quote: '@toobaz : I know it''s been some time, but according to GitHub, the only thing you absolutely
+      need to update is the whatsnew. Do you still want to get this merged?'
+  - pr: 29792
+    author: jschendel
+    file: null
+    quote: 'closes #29718 tests added / passed passes black pandas passes git diff upstream/master -u
+      -- "*.py" | flake8 --diff whatsnew entry'
+  - pr: 29940
+    author: mroeschke
+    file: null
+    quote: 'closes #29864 tests added / passed passes black pandas passes git diff upstream/master -u
+      -- "*.py" | flake8 --diff whatsnew entry'
+  - pr: 30150
+    author: jschendel
+    file: null
+    quote: 'closes #30013 tests added / passed passes black pandas passes git diff upstream/master -u
+      -- "*.py" | flake8 --diff No whatsnew entry since this issue was never user facing.'
+- id: a48a085c-6619-4d47-bba0-4efef7bd4ddc
+  statement: Use DeprecationWarning for deprecations that are not expected to affect interactive users,
+    and FutureWarning for others.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.996
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 13602
+    author: gfyoung
+    file: null
+    quote: '@jreback : fair enough - in the meantime, I think we do have one deprecation removal that
+      I think all of us can agree upon (#13419) 😄'
+  - pr: 13147
+    author: jorisvandenbossche
+    file: pandas/core/common.py
+    quote: '@jreback I think in this case case we should deviate from our normal rule of using FutureWarning
+      for deprecations, and actually use a DeprecationWarning. Typically, if people have used this, it
+      will rather be in a package than in interactive explorative coding. And I think it is not needed
+      that users of those packages '
+  - pr: 16140
+    author: jorisvandenbossche
+    file: null
+    quote: '@jreback yes, but I think what @chris-b1 wants to say that is then could also use a deprecation
+      warning (since it was documented using the old path, so it was kind of public)'
+  - pr: 20050
+    author: jorisvandenbossche
+    file: pandas/core/indexes/datetimes.py
+    quote: '@jreback no, the deprecation is still there (the fact that the deprecation is still there
+      is certainly a left-over, but let''s remove that (both the actual deprecation and the docs) in a
+      separate PR) @himanshuawasthi95 Yes, please add back'
+- id: 86530d06-62d0-430a-9802-3ca8c9a5a75b
+  statement: Always add comprehensive regression tests for new features or bug fixes in the test files.
+  scope: testing
+  scope_pattern: null
+  confidence: 0.995
+  evidence_count: 24
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 15422
+    author: jorisvandenbossche
+    file: pandas/tests/series/test_analytics.py
+    quote: Can you add such NA tests for the unordered case as well? And can you put those asserts on
+      a single line like assert_series_equal(na_ser.rank(na_option='bottom'), exp_bot) that should fit
+      within the PEP8 line number of chars limit, but will be more condense
+  - pr: 16661
+    author: gfyoung
+    file: null
+    quote: '@rosygupta : Thanks for the contribution! A couple of things: Instead of putting "yes", an
+      "x" between the brackets will suffice, as it will render as a check-mark. Your tests will need to
+      be more comprehensive. For starters, you should write additional tests that hit each of those ValueError
+      messages that you added.'
+  - pr: 18094
+    author: gfyoung
+    file: pandas/tests/io/parser/header.py
+    quote: 'Add a test for the following case: data = """A,A,A,B\none,one,one.1,two\n0,40,34,0.1""" Let''s
+      make sure your deduping is robust.'
+  - pr: 18094
+    author: gfyoung
+    file: pandas/tests/io/parser/header.py
+    quote: 'Very nice! Looking at your code, can we add one more test case here: data = """A,A,A,B,B\none,one,one.1,two,two\n0,40,
+      34,0.1,0.1"""'
+- id: 0709a34f-7cd1-4a5a-91b1-067b782ee3de
+  statement: Minimize diffs in pull requests by avoiding unrelated changes.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.995
+  evidence_count: 16
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 21645
+    author: WillAyd
+    file: pandas/tests/frame/test_analytics.py
+    quote: You didn't change anything with this right? Just consolidating under "Row deduplication" header?
+      For future reference would be better to do cleanup tests like this in a separate change. Larger
+      diffs are inherently more difficult and slower to be reviewed, so preferable to keep diffs minimal
+      to core change
+  - pr: 23145
+    author: datapythonista
+    file: doc/source/cookbook.rst
+    quote: Changes to this file seem unrelated to the content of this PR. Do you mind reverting here,
+      and open a separate PR with them if needed.
+  - pr: 24322
+    author: datapythonista
+    file: setup.cfg
+    quote: can you undo this change here, and send it in a different PR? I don't think this is related
+      to the rest of the changes, is it?
+  - pr: 28001
+    author: datapythonista
+    file: asv_bench/benchmarks/io/json.py
+    quote: Can you undo this please, besides probably being the reason to have the CI in green, we are
+      strict about not including unrelated changes to PR, to keep the maintenance of the project under
+      control.
+- id: 19aca406-e445-4cac-b811-0fa7b66d1306
+  statement: When testing the df.to_csv method, prefer to assert the result directly rather than writing
+    to a buffer.
+  scope: testing
+  scope_pattern: null
+  confidence: 0.995
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 13571
+    author: gfyoung
+    file: pandas/io/tests/parser/common.py
+    quote: 'We like to have tests that are as compact as possible. Do we really need to have this many
+      rows for this test? Can we get away with just one? This becomes pertinent for my next point: To
+      make these tests as unit-like as possible, we would prefer NOT to use to_csv (if possible) and follow
+      the StringIO(data) paradigm. I '
+  - pr: 15984
+    author: gfyoung
+    file: pandas/tests/frame/test_to_csv.py
+    quote: 'Actually, now that I look at this, since df.to_csv DOES return if buf is None, complicating
+      the testing with writing to a buffer seems unnecessary. In the future, we should encourage any tests
+      of to_csv to do the following: expected = "foo" result = df.to_csv() assert result == expected That
+      makes your point somewhat m'
+  - pr: 21401
+    author: jorisvandenbossche
+    file: doc/source/io.rst
+    quote: Is there a reason you are not using to_csv here? It should be possible to write to a buffer
+      with that as well. Further, I think it would be good to actually run the code of this example, to
+      make sure it works. We could either add it as a test case, or either actually run it in the documentation
+      build (by applying it on
+  - pr: 29521
+    author: gfyoung
+    file: pandas/tests/frame/test_dtypes.py
+    quote: 'To clarify @mroeschke comment, he means this: result = df.iloc[0] tm.assert_series_equal(df.iloc[0],
+      expected) And while we''re at it, let''s also add a new line beneath expected to make it easier
+      to read.'
+- id: 321d38f9-5e8b-437d-80d6-13b1c4c6e483
+  statement: Always include a note in the appropriate 'whatsnew' file for any changes made in a pull request.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.995
+  evidence_count: 44
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 8022
+    author: jorisvandenbossche
+    file: null
+    quote: Tests passed, so merging. Thanks a lot @artemyk, excellent first (or second now) PR! (and more
+      is always welcome if you want :-))
+  - pr: 8232
+    author: jorisvandenbossche
+    file: null
+    quote: '@artemyk I think this is ready to merge (I already commented enough :-), the last comments
+      on the connection/transaction issues can be addressed in another PR, I will open an issue for that).
+      Ready on your part?'
+  - pr: 9197
+    author: shoyer
+    file: null
+    quote: This looks good to me. @mortada could you please add a note to the what's new for 0.16? You
+      can reference the issue number for this PR.
+  - pr: 9908
+    author: shoyer
+    file: null
+    quote: 'This looks great to me. Can you please: add a note to what''s new squash your changes into
+      one commit (we prefer not to have commits for which Travis tests fail merged into master, because
+      it can complicate things like git bisect)'
+- id: fe2d18b3-326d-477d-869b-5e2bdf3a0fb1
+  statement: In tests, always construct the expected output explicitly and use tm.assert_frame_equal(result,
+    expected) for assertions.
+  scope: testing
+  scope_pattern: null
+  confidence: 0.995
+  evidence_count: 41
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 18460
+    author: toobaz
+    file: pandas/tests/frame/test_reshape.py
+    quote: 'The frame is an exact copy, but assert_frame_equal fails (two lines below) because of #18455
+      . So until that is fixed, I guess I can only add a check on the dtypes.'
+  - pr: 18810
+    author: gfyoung
+    file: pandas/tests/reshape/test_pivot.py
+    quote: 'I like what you''re testing here, but I would modify a couple of things: Add a newline after
+      the first tm.assert_frame_equal. It makes it easier to read. Construct the output explicitly using
+      the DataFrame constructor (and check against that too). At this point, I know for example that f(''sum'')
+      and f(np.sum) should be t'
+  - pr: 21176
+    author: mroeschke
+    file: pandas/tests/io/parser/common.py
+    quote: Could you instead specify an expected DataFrame and use tm.assert_frame_equal? result = self.read_csv(...)
+      expected = pd.DataFrame(...) tm.assert_frame_equal(result, expected)
+  - pr: 21318
+    author: WillAyd
+    file: pandas/tests/io/json/test_json_table_schema.py
+    quote: 'To make sure that we''ve preserved the frame metadata we should use the tm.assert_frame_equal
+      function here. Typically with tests we will: Create a variable called expected, which is very explicit
+      about what we want (here that''s just a copy of df) Assign to a variable called result, which here
+      would be the result of pd.'
+- id: ff831c4a-a589-4ca1-a389-54b1733b4577
+  statement: Use 'result' and 'expected' as variable names for comparison in test assertions.
+  scope: file
+  scope_pattern: pandas/tests/%
+  confidence: 0.995
+  evidence_count: 16
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 16955
+    author: jorisvandenbossche
+    file: pandas/tests/series/test_analytics.py
+    quote: why are you asserting here directly to 0, and below to the result of expected = s.idxmin().
+      Both can use the same expected value? (I see in the recent commits you changed this)
+  - pr: 21849
+    author: WillAyd
+    file: pandas/tests/groupby/test_transform.py
+    quote: Minor nit but we mostly use result to compare against expected - can you change the variable
+      name here and on the assertion line?
+  - pr: 25619
+    author: WillAyd
+    file: pandas/tests/io/json/test_normalize.py
+    quote: What is the [columns] needed here for? Would be preferable to just do tm.assert_frame_equal(result,
+      expected). Would be more explicit order-wise if you constructed the expected DataFrame from a list
+      of lists rather than dict
+  - pr: 25888
+    author: WillAyd
+    file: pandas/tests/generic/test_generic.py
+    quote: So the point of tests is to be explicit about expectations. You should assign the result of
+      this last expression to a local variable called result and create a separate DataFrame called expected
+      with the anticipated values. Then use tm.assert_frame_equal to ensure correctness. You'll see this
+      idiom in quite a few place
+- id: d0b7c6e2-804c-46b0-90fd-60122da4b358
+  statement: Aim to keep pull requests under 200 lines and break larger changes into smaller, manageable
+    parts.
+  scope: process
+  scope_pattern: null
+  confidence: 0.994
+  evidence_count: 34
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 19268
+    author: jorisvandenbossche
+    file: null
+    quote: '@jreback what are your thoughts here on the way forward? I would rather try to merge this
+      quickly, with the idea to do follow-up PRs. (the problem is that this PR will never be perfect,
+      unless it does at once a full conversion of the other internal types and edits throughout the code-base
+      to use this, but that makes it'
+  - pr: 20889
+    author: jbrockmendel
+    file: null
+    quote: just an FYI, rather than a single PR, this needs to be a series of smaller, self-consistent
+      PR's. much easier to review and revise, otherwise this will get bogged down. @Dr-Irv There are a
+      bunch of planned/discussed steps between the status quo and the functionality in this PR. If you're
+      up to help with the whole trans
+  - pr: 20889
+    author: jbrockmendel
+    file: null
+    quote: then I'd like to see the workaround so I can get my use case working The workaround I have
+      in mind assumes you are mostly interested in patching Series arithmetic and logical operators. Is
+      that accurate? and since I have put a lot of thought into getting this PR to work, I can also help
+      with the transition @Dr-Irv soun
+  - pr: 20889
+    author: jorisvandenbossche
+    file: null
+    quote: I think it is still worthwhile to push forward this PR to implement this separately from the
+      integer-array PR (which might take more discussion, and it also a very big one right now). @jreback
+      can you give more concrete feedback on the way @Dr-Irv implemented things here, based on what you
+      did in the other PR? (for the
+- id: 4f92f004-ca91-4622-aa4d-2a08b33898f4
+  statement: Include examples in docstrings to clarify the expected behavior and usage of functions.
+  scope: file
+  scope_pattern: pandas/**/*.py
+  confidence: 0.994
+  evidence_count: 20
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 5199
+    author: jorisvandenbossche
+    file: null
+    quote: '@hayd No, it was actually only from an aesthetical point :-) But after reading it, you are
+      right that is is not that clear. Maybe the options can be listed in bullets. And some examples are
+      always good! I am much in favor of more examples in docstrings'
+  - pr: 5826
+    author: jorisvandenbossche
+    file: null
+    quote: '@danielballan yeah, maybe that wasn''t very clear. But I think the examples are much more
+      valuable to users if you can see in a glimpse the possible outputs.'
+  - pr: 7398
+    author: jorisvandenbossche
+    file: null
+    quote: '@chancyk I added some more comments on the actual examples you provided. In general I think
+      some of the example work only ''by accident'' because the example data is a bit strange (in the
+      sense that you have exactly the same data in the series/dataframe and in the column/index to compare)'
+  - pr: 12442
+    author: jorisvandenbossche
+    file: null
+    quote: Thanks! Further comment about the examples, I would start with an example of an actual empty
+      frame (eg a DataFrame with only index), and only then show the example with the NaNs
+- id: 90951abd-ef4d-4bb8-9f6a-63ecc641d477
+  statement: Use pre-commit hooks for code checks to ensure cross-platform compatibility and faster feedback.
+  scope: process
+  scope_pattern: null
+  confidence: 0.994
+  evidence_count: 29
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 16386
+    author: jorisvandenbossche
+    file: pandas/tests/indexes/test_interval.py
+    quote: Ah, OK, will first try to read the discussion there before commenting further, as I at least
+      disagree with the tests here (do you have the idea it already reached some consensus?) Still, I
+      think it will be beneficial to keep the PRs and discussion in the PR manageable to leave it out
+      here but put in separate one.
+  - pr: 22913
+    author: datapythonista
+    file: pandas/core/frame.py
+    quote: '@jreback 100% agree, but these lines are already there in the original files, they''ve just
+      been moved. @alimcmaster1 removed some of the errors that were being ignored, but the ones left
+      are not trivial. Didn''t check in detail, but E1101 is probably to avoid false positives in attributes
+      that are created dynamically an'
+  - pr: 30455
+    author: alimcmaster1
+    file: null
+    quote: Code checks now runs without error for non standard imports Run ci/code_checks.sh patterns
+      Check for non-standard imports Check for non-standard imports DONE green cc. @WillAyd
+  - pr: 30773
+    author: gfyoung
+    file: null
+    quote: Not quite a subset. As the echo messages indicate, the way we're running them in the script
+      allows the users to fix mistakes simultaneously checks for black and isort. code_checks.sh, however,
+      is purely for correctness (i.e. you wouldn't get the auto-correct) and contains a ton more checks
+      (e.g. doctests, cpplint) that
+- id: b3db75cd-7333-460d-8f5a-996f7e8cf257
+  statement: Tests for DataFrame methods should be placed in the corresponding tests.frame.methods directory.
+  scope: directory
+  scope_pattern: pandas/tests/frame/methods/%
+  confidence: 0.994
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 12399
+    author: jorisvandenbossche
+    file: pandas/tests/test_generic.py
+    quote: There is already a test_filter in https://github.com/pydata/pandas/blob/c2ea8fb20611370c7db7e11506727b0b67a76662/pandas/tests/frame/test_axis_select_reindex.py#L621,
+      maybe good to add this there?
+  - pr: 17800
+    author: jorisvandenbossche
+    file: null
+    quote: (didn't look at the tests yet) Implementation-wise, I am wondering if it would be cleaner to
+      convert the args to axis style instead to index/columns style. As inside reindex and rename, the
+      index/column style is then converted to axis style (with _construct_axes_from_arguments). So now
+      you do the conversion sometimes t
+  - pr: 21016
+    author: toobaz
+    file: pandas/tests/series/indexing/test_indexing.py
+    quote: 'This is fine but probably not in the right test: could you append it to test_reset_index_level
+      (in pandas/tests/series/test_alter_axes.py)?'
+  - pr: 22561
+    author: mroeschke
+    file: null
+    quote: '@HannahFerch ideally if you could include this test #22150 (comment) in our testing suite,
+      that''d be great. I think pandas/tests/frame/test_apply.py should be an apt location for the test.'
+- id: f5fa25a4-76df-4f61-bda0-9f71acbd2c1e
+  statement: Always add an entry in the latest doc/source/whatsnew/vX.X.X.rst file when fixing a bug or
+    adding a new feature.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.994
+  evidence_count: 24
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 34767
+    author: rhshadrach
+    file: null
+    quote: 'closes #32599 tests added / passed passes black pandas passes git diff upstream/master -u
+      -- "*.py" | flake8 --diff whatsnew entry This regression was a symptom of DataFrameGroupBy.size
+      ignoring as_index=False. Fixing this now makes the result either a frame or series, so where the
+      internals use size() they now use gro'
+  - pr: 46086
+    author: mroeschke
+    file: null
+    quote: Tests added and passed if fixing a bug or adding a new feature All code checks passed. Added
+      an entry in the latest doc/source/whatsnew/v1.5.0.rst file if fixing a bug or adding a new feature.
+  - pr: 46087
+    author: mroeschke
+    file: null
+    quote: Tests added and passed if fixing a bug or adding a new feature All code checks passed. Added
+      an entry in the latest doc/source/whatsnew/v1.5.0.rst file if fixing a bug or adding a new feature.
+  - pr: 46335
+    author: lukemanley
+    file: null
+    quote: 'closes #46306 Tests added and passed if fixing a bug or adding a new feature All code checks
+      passed. Added an entry in doc/source/whatsnew/v1.4.2.rst'
+- id: b6db878f-fbad-4c07-9bd5-3fc152271eec
+  statement: Use PandasWarning subclasses (e.g., Pandas4Warning, PandasFutureWarning) instead of standard
+    Python warnings like DeprecationWarning or FutureWarning.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.994
+  evidence_count: 13
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 47444
+    author: datapythonista
+    file: null
+    quote: 'Closes #28568 Initial PDEP to define purpose and guidelines for pandas enhancement proposals
+      (equivalent to PEPs or NEPs). Feedback very welcome. This PR also makes the PDEPs public in the
+      roadmap page of our website.'
+  - pr: 51417
+    author: jorisvandenbossche
+    file: null
+    quote: 'The top post could indeed have provided a brief summary and rationale of the proposed changes,
+      to give some context to the diff. Now, I think apart from clarification of existing text (what Marco
+      mentioned), the "sponsor" seems to be the only substantial change. Potential summary: Clarify the
+      scope and purpose of PDEPs'
+  - pr: 59125
+    author: simonjayhawkins
+    file: null
+    quote: Thanks @Aloqeely for working on this. As a reader of this document, I would ask, "What is the
+      main purpose of PDEP-17?" The abstract states, "This PDEP defines pandas' backwards compatibility
+      and deprecation policy." This seems somewhat unclear as the motivation behind the PDEP since we
+      already have a Version policy. I
+  - pr: 62162
+    author: rhshadrach
+    file: null
+    quote: 'closes #xxxx (Replace xxxx with the GitHub issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added type annotations to new arguments/methods/functions.
+      Added an entry in the latest doc/source/whatsnew/vX.X.X.rst file if fixing a bug or adding a new
+      feature. Replaces al'
 - id: 5a77c1a1-c04f-411d-acf9-a8f56446b4dc
   statement: Use @pytest.mark.parametrize to parameterize tests for better clarity and maintainability.
   scope: testing
   scope_pattern: null
+  confidence: 0.994
+  evidence_count: 42
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 20497
+    author: WillAyd
+    file: pandas/tests/test_window.py
+    quote: I'd advise against using random data in a test case as it could cause intermittent failures
+      and make bugs harder to find. To inject missing data, could you not just parametrize the function
+      with a second array of say [0., np.nan, 0.2, np.nan, 0.4] to match what you had earlier?
+  - pr: 20574
+    author: WillAyd
+    file: null
+    quote: 'Based off of the comments in the linked issue I think there are (at least) three scenarios
+      we wanted to test: Mapping the NA value to a new value Mapping a str value to a new value AND Mapping
+      an int value to a new value You covered the first two but left out the third so we should add that.
+      With that said, whenever yo'
+  - pr: 20574
+    author: WillAyd
+    file: pandas/tests/series/test_apply.py
+    quote: 'Nice job on the parametrization but in the process of updating this line I think we are losing
+      sight of what we are trying to test. Originally you were constructing this series from list(''abcd'')
+      and appending an NA record. Now all you are doing is using the key of your dict as the series value,
+      but that''s not the same '
+  - pr: 21107
+    author: jschendel
+    file: pandas/tests/indexes/test_category.py
+    quote: 'Might be slightly cleaner to do the parametrize like: @pytest.mark.parametrize(''values, expected'',
+      [([1, 2, 3], True), ...]) Then just have one assert in the test: assert ci.is_unique is expected'
+- id: 7ea9a3d2-1e24-4671-8e9e-fce54591a75b
+  statement: 'Add the GitHub issue number as a comment at the top of each test in the format # GH<issue
+    number>.'
+  scope: testing
+  scope_pattern: null
+  confidence: 0.994
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 14446
+    author: jorisvandenbossche
+    file: pandas/tests/frame/test_convert_to.py
+    quote: 'Can you add this as a comment instead of docstring? (docstrings hide the test name in the
+      output of nosetests) Also just the number is fine, like # GH 13937'
+  - pr: 14967
+    author: jorisvandenbossche
+    file: pandas/tests/test_internals.py
+    quote: 'Can you turn this into a normal comment (with #)? Otherwise the test name does not show up
+      in the nosetests output. You can also add the issue number'
+  - pr: 21235
+    author: mroeschke
+    file: pandas/tests/groupby/test_transform.py
+    quote: 'Could you add a comment with the issue number for this test (like GH #21200, #21621), looks
+      like the other issue is covered here as well.'
+  - pr: 23044
+    author: jschendel
+    file: pandas/tests/frame/test_missing.py
+    quote: Can you add the GitHub issue number as a comment? See two tests below for an example. It's
+      useful if someone makes changes that cause this test to break, as it allows them to quickly find
+      the discussion and context for the test.
+- id: 3f266054-b0e7-4c2a-b2db-28ce50b7e02e
+  statement: Divide tests into smaller, focused units to improve clarity and debugging when failures occur.
+  scope: testing
+  scope_pattern: null
+  confidence: 0.994
+  evidence_count: 28
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 9110
+    author: jorisvandenbossche
+    file: null
+    quote: '@jreback no, it still something else I think. The issue is about the creation of the database
+      itself, here it is just checking if a connection can be made for each class instead of for each
+      test separately.'
+  - pr: 17062
+    author: toobaz
+    file: null
+    quote: is just saying that you should separate out this portion of the code as a separate test, even
+      if it means duplicating some of the setup logic in the test to which it belongs currently. Yes,
+      exactly. I personally would consider the duplication (and also the "entropy" caused by splitting
+      tests which were designed togethe
+  - pr: 20061
+    author: WillAyd
+    file: null
+    quote: Fair point. The only issue with CI here is going to be the location of the files in the scripts
+      folder, which I assume pytest nor the tests themselves would have access to given it's outside of
+      the top level pandas package. lint.sh could fix that but I do think it would be better to have dedicated
+      unit tests for the fu
+  - pr: 21903
+    author: jorisvandenbossche
+    file: null
+    quote: I am not fully convinced this is needed, before we actually have concrete plans to actively
+      refactor the code. For example, splitting for just splitting makes git blame not work anymore
+- id: 1d122cfd-617d-445d-b1bb-70159c3f8f7c
+  statement: Prefer adding new commits instead of force-pushing changes to the same commit.
+  scope: process
+  scope_pattern: null
+  confidence: 0.993
+  evidence_count: 23
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 7714
+    author: jorisvandenbossche
+    file: doc/source/v0.14.1.txt
+    quote: I just rewrote this a bit, because how is was previously (I copied the original to enhancements),
+      it was not clear to me what actually changed (and so in which way people's code could be affected/have
+      to be changed)
+  - pr: 13004
+    author: jorisvandenbossche
+    file: null
+    quote: '@jreback Can you please try to not change the commit too much during the merge? This makes
+      reviewing PRs / seeing what has been merged a lot more difficult using github (as it seems the ''Files
+      changed'' is quite different from the actual merged commit). (of course, small fixup changes are
+      not a problem, certainly for PR'
+  - pr: 14073
+    author: jorisvandenbossche
+    file: null
+    quote: '@OXPHOS Just a question, what did you precisely change regarding to the previous version (I
+      just don''t remember exactly anymore, sorry). Sometimes adding a commit instead of amending the
+      previous can make this more clearer.'
+  - pr: 16432
+    author: jorisvandenbossche
+    file: pandas/core/reshape/reshape.py
+    quote: Since it is in your commit, you somehow made that change :-) But if it was not the intent,
+      you can just revert it (change it back to how it was based on the diff you see here)
+- id: 13bca86d-83ac-4e8b-a777-ab1921938837
+  statement: Always add tests for new functionality or bug fixes in your pull requests.
+  scope: testing
+  scope_pattern: null
+  confidence: 0.992
+  evidence_count: 22
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 28319
+    author: WillAyd
+    file: null
+    quote: Thanks for the PR! Can you add a test for the behavior you are trying to solve? Tests are typically
+      the most critical part of any PR
+  - pr: 33638
+    author: CloseChoice
+    file: null
+    quote: 'Add test to check whether reindexing works correctly. closes #26209 tests added / passed passes
+      black pandas passes git diff upstream/master -u -- "*.py" | flake8 --diff whatsnew entry'
+  - pr: 36278
+    author: phofl
+    file: null
+    quote: 'closes #24768 tests added / passed passes black pandas passes git diff upstream/master -u
+      -- "*.py" | flake8 --diff Issue was fixed in the past.'
+  - pr: 36326
+    author: phofl
+    file: null
+    quote: 'closes #25610 tests added / passed passes black pandas passes git diff upstream/master -u
+      -- "*.py" | flake8 --diff Was fixed in the past. Added test to avoid regression'
+- id: 91b58a1b-b6b7-4ed2-8646-fc4ed32e0902
+  statement: Keep pull requests focused on a single task or change to facilitate the review process.
+  scope: process
+  scope_pattern: null
+  confidence: 0.992
+  evidence_count: 63
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 5615
+    author: jorisvandenbossche
+    file: null
+    quote: '@gjreda Yes, in the rendered view of github it looks fine (https://github.com/gjreda/pandas/blob/master/doc/source/comparison_with_sql.rst),
+      but when looking at the raw text (eg in the changes tab, where you can add comments) it is hard
+      to read. And it is there that I mostly review PR''s. This is maybe not real code, bu'
+  - pr: 8232
+    author: jorisvandenbossche
+    file: null
+    quote: '@artemyk Thanks for working on this! I already took a brief look, but not yet detailed. There
+      seems to be some good ideas, but it is a bit difficult to review because so many things are touched
+      at once. Can you try to keep this PR as focused as possible? Eg try not to make cosmetic or PEP8
+      changes to lines of code that'
+  - pr: 8562
+    author: jorisvandenbossche
+    file: null
+    quote: '@artemyk Coming back to this, sorry for the delay. I am looking at it, but to start, could
+      you make a short schematic overview of what now belongs to which class (roughly the concepts)? That
+      maybe eases the discussion. Furter, I think we should try to look at some of the usage cases mentioned
+      in #7960, to see how they '
+  - pr: 10262
+    author: jorisvandenbossche
+    file: null
+    quote: '@artemyk Thanks! Can you add a small note in the 0.16.2 whatsnew bugfix section? And for the
+      rewriting of the tests, I was thinking it would maybe be better to keep this for a separate PR if
+      you don''t mind? As this would give rahter some conflicts with the connection PR, and I am already
+      slow with reviewing that one. S'
+- id: cd648054-ac43-49c8-8bfd-b240100f1246
+  statement: When a pull request does not fully resolve an issue, use 'xref' instead of 'closes' in the
+    PR description.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.991
+  evidence_count: 13
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 12306
+    author: gfyoung
+    file: null
+    quote: '@kawochen : Also, you should put "Closes gh-12306" in your commit message so that the issue
+      gets automatically closed once the PR is merged.'
+  - pr: 15757
+    author: gfyoung
+    file: null
+    quote: '@jreback : I might also point out that you had mentioned moving forward on this PR about a
+      month ago here with no response. Thus, I am also in favor with merging this AND closing the related
+      issue, which can always be revived in the future by anyone who''s interested.'
+  - pr: 19849
+    author: gfyoung
+    file: null
+    quote: '@Dr-Irv @jreback : Are you sure we can close #9862 with this PR? Seems to be the case that
+      it can given some of the discussion that took place. However, just want to double-check.'
+  - pr: 19849
+    author: gfyoung
+    file: null
+    quote: '@Dr-Irv @jreback : Is this PR meant to also close #9943? (or are you just "xref"-ing it) .
+      I only ask because you mention the issue number in the whatsnew but are not closing it.'
+- id: f20feee2-03cc-438c-be74-c4d76d10c50b
+  statement: Always reference the relevant issue number in your pull request comments or documentation
+    updates.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.99
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 17414
+    author: gfyoung
+    file: pandas/tests/indexes/test_base.py
+    quote: You didn't need to necessarily remove your other note. I was suggesting that you just add a
+      reference to the issue somewhere in the comments.
+  - pr: 36856
+    author: MarcoGorelli
+    file: null
+    quote: 'Thanks @meghana-12 ! Minor note, but closes #<issue number> will cause the referenced issue
+      to be closed when your PR is merged, which you''d only want to do if this is the final PR to close
+      that issue. It looks like there''s other PRs than this one which are needed to close #36777 , so
+      I''ve changed the description to xr'
+  - pr: 39239
+    author: simonjayhawkins
+    file: doc/source/whatsnew/v1.2.1.rst
+    quote: perhaps add the issue number at the end of this sentance (or somewhere else if you think more
+      appropriate, the release note does not currently have a reference to the issue)
+  - pr: 43274
+    author: simonjayhawkins
+    file: doc/source/whatsnew/v1.3.3.rst
+    quote: 'not sure if I should mark this as the relevant issue #39280 (comment). don''t use that one
+      as this issue is just a discussion after the PR was merged. Incase I am referring the PR (instead
+      of issue), should I still use :issue:? sure.'
+- id: b2208e91-88f7-4c60-be78-f359e339e0d5
+  statement: Use 'xfail' for tests that are expected to be fixed in the future and 'skip' for tests that
+    are not expected to pass.
+  scope: testing
+  scope_pattern: null
+  confidence: 0.989
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 23885
+    author: gfyoung
+    file: pandas/tests/arithmetic/test_timedelta64.py
+    quote: You have two distinct tests here as delineated by this xfail check. In the interest of modularity,
+      IMO this test should be broken up into two. Similar comment goes for your other tests where there
+      is an xfail like this.
+  - pr: 28510
+    author: jbrockmendel
+    file: pandas/tests/io/json/test_pandas.py
+    quote: instead of using the fixture, can you parametrize and xfail these cases? That way the xfail
+      can be strict instead of short-circuiting
+  - pr: 28945
+    author: WillAyd
+    file: pandas/tests/extension/test_integer.py
+    quote: Can you still use all_compare_operators here and just xfail where appropriate? Will be easier
+      to track over time instead of piecing in various tests as fixes come along
+  - pr: 44571
+    author: jorisvandenbossche
+    file: null
+    quote: 'xref #39146 As discussed before, turning the generic "skip" into an "xfail", so it''s easier
+      to keep track of which tests start to pass (and also clean-up a whole bunch of tests that were indeed
+      already passing). For parametrized tests, sometimes it''s only a subset of the tests that are failing/passing.
+      So for those cas'
+- id: a0ee0ccd-5816-4dbf-8539-d689471e0c03
+  statement: Always include a whatsnew entry in the appropriate file for any bug fixes or new features.
+  scope: file
+  scope_pattern: doc/source/whatsnew/%
+  confidence: 0.988
+  evidence_count: 32
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 6875
+    author: jorisvandenbossche
+    file: null
+    quote: 'Looking good! I tested the test and it works, and also Travis is green. I think adding something
+      to the changelog is not really necessary, as this fixes something that was not yet released (there
+      will be one big item in the changelog about all sql stuff that is improved). But just a last question:
+      can you squash the tw'
+  - pr: 7907
+    author: sinhrks
+    file: null
+    quote: 'Fixes 2 problems related to Timestamp string parsing: Timestamp parsing results incorrect
+      if input contains offset string (Closes #7833). NOTE: Also modified Timestamp.__repr__ to display
+      fixed timezone info, because this can be either pytz or dateutil. # Result after the fix # If string
+      contains offset, it will be par'
+  - pr: 9014
+    author: shoyer
+    file: null
+    quote: This looks pretty good to me. We are about to release 0.15.1, so after we do that please add
+      release notes for this new feature.
+  - pr: 9197
+    author: shoyer
+    file: null
+    quote: This looks good to me. @mortada could you please add a note to the what's new for 0.16? You
+      can reference the issue number for this PR.
+- id: 8632e421-4818-4b7f-91a7-7d05e1af711a
+  statement: Always run linting checks and ensure tests pass before pushing code to GitHub.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.988
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 6417
+    author: jorisvandenbossche
+    file: null
+    quote: Looks much better! There seem to be some more commits in the above list that are not yet in
+      pandas itself? Closing this PR then.
+  - pr: 21291
+    author: WillAyd
+    file: null
+    quote: 'Thanks for the PR! This appears to have broken a few tests. Be sure to check out the contributing
+      to pandas guide and follow the steps locally to make sure you don''t get any test errors before
+      pushing to GitHub: https://pandas.pydata.org/pandas-docs/stable/contributing.html'
+  - pr: 30287
+    author: simonjayhawkins
+    file: null
+    quote: '@DorAmram Thanks for the PR. There are lint failures. Can you run black pandas, see https://dev.pandas.io/docs/development/contributing.html#python-pep8-black'
+  - pr: 42173
+    author: MarcoGorelli
+    file: null
+    quote: Thanks @vrserpa - if you fetch and merge upstream/master that should fix the pre-commit failure
+      Are you interested in writing a linting check for this in pandas-dev-flaker?
+- id: 187b78a9-5d79-475d-8dc5-151e90045749
+  statement: Use '#' for comments that are not docstrings in the code.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.987
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 21889
+    author: gfyoung
+    file: null
+    quote: '@Giftlin : Thanks for the PR! In general, we use the # if the comments are not docstrings,
+      so I actually would prefer to leave that comment as is.'
+  - pr: 21888
+    author: gfyoung
+    file: null
+    quote: '@Keerthivasan1990 : Thanks for the PR! In general, we use the # if the comments are not docstrings,
+      so I actually would prefer to leave that comment as is.'
+  - pr: 27621
+    author: datapythonista
+    file: null
+    quote: Thanks @albertvillanova, that's good to know. I think then we should make sure in scripts/validate_docstrings.py
+      that we don't find "comments" that start with one of the keywords that we know won't be comments
+      (deprecated, versionadded,...). If you don't mind creating an issue for that, and referencing this
+      PR in it, s
+  - pr: 32034
+    author: WillAyd
+    file: null
+    quote: Thanks @3vts General comment - would be nice to keep PRs more minimal in the future. This was
+      maybe an exception because of all of the double curly braces at play, but if something else comes
+      up the same in the future should tackle in smaller bits
+- id: 3999519c-9053-44f2-a6c1-dfb9a2b072c5
+  statement: When encountering CI failures that seem unrelated to your PR, check the latest commits on
+    the main branch to confirm if they are also failing.
+  scope: process
+  scope_pattern: null
+  confidence: 0.987
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 19023
+    author: gfyoung
+    file: null
+    quote: It's still happening though AFAICT. The PR build before mine has already failed on two builds
+      with that exact same error. https://travis-ci.org/pandas-dev/pandas/builds/323891129
+  - pr: 26703
+    author: datapythonista
+    file: null
+    quote: 'Looks like the benchmarks are failing, the error here is unrelated to this PR, I also saw
+      the same error in #26414. We don''t see in other PRs, because we only check the benchmarks when
+      something inside asv_bench is modified, and I guess the failure was produced by changes in pandas.
+      Will check which change broke it, an'
+  - pr: 29506
+    author: alimcmaster1
+    file: null
+    quote: Don't think the test failures are related to this change - I see the same on the latest PR
+      that was merged - https://github.com/pandas-dev/pandas/runs/295247988
+  - pr: 40563
+    author: mzeitlin11
+    file: null
+    quote: Could some of the pandas maintainers let me know if the failed checks are normal ? They are
+      unrelated to any changes I've made as far as I know. If you look at the failures in a run like https://github.com/pandas-dev/pandas/pull/40563/checks?check_run_id=2163292906,
+      looks like they might be related?
+- id: 0a17dcf4-b6da-4ed5-8954-83cbeef64983
+  statement: When fixing a bug or adding a new feature, ensure to add tests, type annotations, and an
+    entry in the latest doc/source/whatsnew/vX.X.X.rst file.
+  scope: process
+  scope_pattern: null
+  confidence: 0.987
+  evidence_count: 16
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 49078
+    author: mroeschke
+    file: null
+    quote: 'closes #42600 (Replace xxxx with the GitHub issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added type annotations to new arguments/methods/functions.
+      Added an entry in the latest doc/source/whatsnew/vX.X.X.rst file if fixing a bug or adding a new
+      feature.'
+  - pr: 49613
+    author: rhshadrach
+    file: null
+    quote: 'closes #42482 (Replace xxxx with the GitHub issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added type annotations to new arguments/methods/functions.
+      Added an entry in the latest doc/source/whatsnew/vX.X.X.rst file if fixing a bug or adding a new
+      feature.'
+  - pr: 50322
+    author: phofl
+    file: null
+    quote: 'closes #45810 (Replace xxxx with the GitHub issue number) closes #42630 (Replace xxxx with
+      the GitHub issue number) Tests added and passed if fixing a bug or adding a new feature All code
+      checks passed. Added type annotations to new arguments/methods/functions. Added an entry in the
+      latest doc/source/whatsnew/vX.X.X.rs'
+  - pr: 51310
+    author: jbrockmendel
+    file: null
+    quote: 'closes #42550 (Replace xxxx with the GitHub issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added type annotations to new arguments/methods/functions.
+      Added an entry in the latest doc/source/whatsnew/vX.X.X.rst file if fixing a bug or adding a new
+      feature.'
+- id: aeb16a02-001c-48c5-8298-885b85101bec
+  statement: Before submitting a pull request for a new feature, open a GitHub issue to discuss it with
+    the core team and community.
+  scope: process
+  scope_pattern: null
+  confidence: 0.987
+  evidence_count: 37
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 15907
+    author: wesm
+    file: null
+    quote: 'I think it would be useful for pandas to have more robust support for various transient serialization
+      formats, with a choice between pickle (most compatible) vs msgpack vs arrow vs other things. Whether
+      the implementation of this goes into core pandas, or into a "leaf" library that gets imported, I
+      don''t have a strong '
+  - pr: 22076
+    author: gfyoung
+    file: null
+    quote: '@abieler : Thanks for this PR! We generally prefer that you open an issue before the PR, so
+      that we can actually discuss whether this feature is a good idea or not. We won''t close this PR,
+      but it would be great if you could open an issue and move your reasoning in the PR description to
+      the issue description.'
+  - pr: 22587
+    author: gfyoung
+    file: null
+    quote: '@palewire : Thanks for the contribution! Could you open an issue for this first (that you
+      can then close with this PR <-- customary procedure here)? Given the impact, this would actually
+      be much preferred for (re-)evaluating and discussing a proposal like this. xref: #13349'
+  - pr: 22580
+    author: gfyoung
+    file: null
+    quote: '@henriqueribeiro : Thanks for the contribution! In the future, if you could open an issue
+      before opening the PR, that would allow us to evaluate the idea first before implementing.'
+- id: 3818213f-8ed1-46f1-a4df-109598ef5dcc
+  statement: Use 'DeprecationWarning' for deprecated public functions in the pandas library.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.987
+  evidence_count: 16
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 5533
+    author: jorisvandenbossche
+    file: null
+    quote: 'Added some comments to the docstrings. I have another question regarding the docstring style:
+      You changed the """ to ``''''''. Is this recommended, or is there some ''policy'' on this in pandas?
+      Because I always use """` (and this is also used in PEP8: http://www.python.org/dev/peps/pep-0008/#documentation-strings).
+      It does'
+  - pr: 7088
+    author: jorisvandenbossche
+    file: null
+    quote: 'Some comments: is it necessary that both the percentage-style (50) and number-style (0.5)
+      are allowed? This seems to make it a bit complex to me (what if you use the first style, but want
+      to give 0.5%, then you have to use the other style and it becomes confusing I think) the deprecation
+      of percentile_width is not in t'
+  - pr: 13990
+    author: jorisvandenbossche
+    file: null
+    quote: 'Related to second question in #13634 (whether to use FutureWarning or DeprecationWarning in
+      deprecating the public pandas.core.common functions). As those functions are mostly used in library
+      code, and less directly by users in their own code, I think a DeprecationWarning is more appropriate
+      in this case. For example, '
+  - pr: 30656
+    author: jorisvandenbossche
+    file: null
+    quote: Consistency in our docs is certainly a good change, but I am not sure the deprecation of the
+      top-level name is necessary. First, it's just historical reasons it is there (we have many things
+      the way they are for historical reasons), and second, you can't create a sparse array as easily
+      with a top-level function (pd.arr
+- id: f3b94461-5613-4cfc-b1b9-dd519d5efbc5
+  statement: Always include the GitHub issue number in the pull request description and ensure tests are
+    added and passed if fixing a bug or adding a new feature.
+  scope: process
+  scope_pattern: null
+  confidence: 0.986
+  evidence_count: 88
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 45787
+    author: phofl
+    file: null
+    quote: 'closes #45762 (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added an entry in the latest doc/source/whatsnew/vX.X.X.rst
+      file if fixing a bug or adding a new feature.'
+  - pr: 45788
+    author: jbrockmendel
+    file: null
+    quote: 'closes #xxxx (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added an entry in the latest doc/source/whatsnew/vX.X.X.rst
+      file if fixing a bug or adding a new feature. Between this and #45782 we''ll be able to get rid
+      of ravels (and theref'
+  - pr: 45794
+    author: rhshadrach
+    file: null
+    quote: 'closes #45793 (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added an entry in the latest doc/source/whatsnew/vX.X.X.rst
+      file if fixing a bug or adding a new feature.'
+  - pr: 45987
+    author: rhshadrach
+    file: null
+    quote: 'closes #45715 (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added an entry in the latest doc/source/whatsnew/vX.X.X.rst
+      file if fixing a bug or adding a new feature.'
+- id: 6a4738c1-4079-4936-a986-0e9aa404c2a8
+  statement: Use the code-block directive for demonstrating old behavior and the ipython directive for
+    newly introduced behavior in the whatsnew files.
+  scope: file
+  scope_pattern: doc/source/whatsnew/%
   confidence: 0.984
   evidence_count: 8
   verdict: unreviewed
   note: ''
   evidence:
-  - pr: 21481
-    author: mroeschke
-    file: pandas/tests/indexes/test_base.py
-    quote: Could you combine this test with the one below with pytest.mark.parametrize over skip_index_keys
-      and the empty list and generator?
-  - pr: 30446
+  - pr: 19118
+    author: jorisvandenbossche
+    file: doc/source/whatsnew/v0.23.0.txt
+    quote: 'To clarify: you can use it for code that can run now, so for the new behaviour. For showing
+      the "old behaviour" you still need to use the literal code-block (there you don''t need to change
+      anything). And by removing output I mean that in an ipython:: python block, you only include the
+      actual code, as the output of the '
+  - pr: 26403
+    author: jschendel
+    file: doc/source/whatsnew/v0.23.0.rst
+    quote: Looks like an old whatsnew note references behavior that will be changed, so switched over
+      to an ipython code block to keep the previous behavior static when this gets generated in the future
+  - pr: 26316
     author: WillAyd
-    file: pandas/tests/indexes/multi/test_drop.py
-    quote: I think the point of this is the raise a KeyError for the example specified - can you model
-      the test to use pytest.raises instead? Should see other examples of this in the code base
-- id: 066a4eba-7cc0-4dd8-8166-b8626ba6b3b8
+    file: doc/source/whatsnew/v1.0.0.rst
+    quote: In case it helps you should use code-block for the old behavior and the ipython directive for
+      newly introduced behavior. You can see an example of this with the Better Repr for MultiIndex section
+      back in the 0.25 whatsnew https://github.com/pandas-dev/pandas/blob/5f31bca3813b2ed71363a9d40518f217d2b546d6/doc/source/what
+  - pr: 27615
+    author: WillAyd
+    file: doc/source/whatsnew/v0.25.0.rst
+    quote: Ah makes sense. Can you convert this into a code-block directive instead of ipython then? You
+      should see examples of that in old whatsnew files that compare before / after behavior of changes
+- id: 2be3dbce-eb9d-4ee0-ba13-407c5ea83b46
+  statement: Ensure that pre-commit checks pass before submitting a pull request.
+  scope: process
+  scope_pattern: null
+  confidence: 0.983
+  evidence_count: 26
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 5124
+    author: jorisvandenbossche
+    file: doc/source/api.rst
+    quote: Can we stick to the 79 chars line length? (or at least to 99 chars) Because now it is difficult
+      to read in the source code (for example on github, it doesn't fit on my screen). Is there a convention
+      in pandas to follow or not follow pep8 on this?
+  - pr: 13481
+    author: gfyoung
+    file: pandas/io/tests/parser/python_parser_only.py
+    quote: Better practice is to explicitly define your expected output by constructing the DataFrame
+      itself. If you want, you can simplify your data input to make this construction easier to write
+      out (does your data need to be that long for the error to be triggered - why not that nice simple
+      data you used in your initial commi
+  - pr: 30773
+    author: gfyoung
+    file: null
+    quote: 'cc @pandas-dev/pandas-core : Thoughts? The question is whether we want people to go in on
+      using pre-commit and thereby remove the redundancy we have with the PR checklist altogether. My
+      only concern with pre-commit (as is) is that it can slow down development (see #30773 (comment)),
+      especially if the changes are small.'
+  - pr: 32222
+    author: MarcoGorelli
+    file: null
+    quote: 'Thanks @anmyachev , good catch! I believe you''re right, there is a missing bracket: the code
+      is currently computing rather than , where n is the sample size. Before this PR can be accepted,
+      you need to write tests / make sure you don''t break existing ones - see contributing to the code
+      base: pandas is serious about tes'
+- id: d4f01705-fdf5-47aa-9ad9-d6db69f77386
+  statement: The first line of a docstring should be a single line summary.
+  scope: file
+  scope_pattern: pandas/core/%
+  confidence: 0.983
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 22423
+    author: WillAyd
+    file: pandas/tests/scripts/test_validate_docstrings.py
+    quote: I think a smaller, more directed example would be preferable here (it doesn't need to match
+      the original docstring and probably won't over time anyway). Can you strip this down to just what's
+      important?
+  - pr: 22570
+    author: gfyoung
+    file: pandas/core/strings.py
+    quote: Since you're trying to improve the docstring, can we try to make this initial description a
+      single line (per convention)? If you need to provide more details, you can do so afterwards i.e.
+      <one-line summary> <more-detail>
+  - pr: 24419
+    author: jschendel
+    file: pandas/core/arrays/categorical.py
+    quote: Can you add a description for this, specify 1-dimensional there, and remove the "(1-dimensional)"
+      from this line? Maybe "array-like" --> "list-like" so it's consistent with the line below (admittedly
+      not sure what the convention is for when to use array-like vs. list-like, so maybe can ignore this).
+  - pr: 30390
+    author: jbrockmendel
+    file: pandas/core/indexes/interval.py
+    quote: 'IIRC docstrings that fit on a single line are allowed. I don''t really have an opinion on
+      this, but would much rather see you implement e.g. #28115 (not on the list i suggested previously)
+      than this.'
+- id: 80e6b0c2-99e2-4261-a776-2957eafe6334
+  statement: Always include the GitHub issue number in the first line of your pull request description.
+  scope: process
+  scope_pattern: null
+  confidence: 0.982
+  evidence_count: 115
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 47399
+    author: phofl
+    file: null
+    quote: 'closes #43143 (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added type annotations to new arguments/methods/functions.
+      Added an entry in the latest doc/source/whatsnew/vX.X.X.rst file if fixing a bug or adding a new
+      feature.'
+  - pr: 47994
+    author: phofl
+    file: null
+    quote: 'closes #44014 (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added type annotations to new arguments/methods/functions.
+      Added an entry in the latest doc/source/whatsnew/vX.X.X.rst file if fixing a bug or adding a new
+      feature.'
+  - pr: 48713
+    author: phofl
+    file: null
+    quote: 'closes #48683 (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added type annotations to new arguments/methods/functions.
+      Added an entry in the latest doc/source/whatsnew/vX.X.X.rst file if fixing a bug or adding a new
+      feature. I think I'''
+  - pr: 48714
+    author: phofl
+    file: null
+    quote: 'closes #48681 (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added type annotations to new arguments/methods/functions.
+      Added an entry in the latest doc/source/whatsnew/vX.X.X.rst file if fixing a bug or adding a new
+      feature.'
+- id: f773bb79-857e-45d9-b14a-7ccbd00879fe
+  statement: Always include the GitHub issue number in the first line of your pull request description
+    when fixing a bug or adding a new feature.
+  scope: process
+  scope_pattern: null
+  confidence: 0.982
+  evidence_count: 47
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 48711
+    author: phofl
+    file: null
+    quote: 'closes #48701 (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added type annotations to new arguments/methods/functions.
+      Added an entry in the latest doc/source/whatsnew/vX.X.X.rst file if fixing a bug or adding a new
+      feature.'
+  - pr: 48734
+    author: phofl
+    file: null
+    quote: 'closes #48726 (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added type annotations to new arguments/methods/functions.
+      Added an entry in the latest doc/source/whatsnew/vX.X.X.rst file if fixing a bug or adding a new
+      feature.'
+  - pr: 48760
+    author: rhshadrach
+    file: null
+    quote: 'closes #48738 (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added type annotations to new arguments/methods/functions.
+      Added an entry in the latest doc/source/whatsnew/vX.X.X.rst file if fixing a bug or adding a new
+      feature.'
+  - pr: 48785
+    author: MarcoGorelli
+    file: null
+    quote: 'closes #48784 (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added type annotations to new arguments/methods/functions.
+      Added an entry in the latest doc/source/whatsnew/vX.X.X.rst file if fixing a bug or adding a new
+      feature.'
+- id: e8f5c021-cef7-4197-9def-2c0feba20eeb
+  statement: Always include a comment with the GitHub issue number on the first line of a new test if
+    fixing a bug or adding a new feature.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.981
+  evidence_count: 47
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 45812
+    author: mroeschke
+    file: null
+    quote: 'closes #xxxx (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added an entry in the latest doc/source/whatsnew/vX.X.X.rst
+      file if fixing a bug or adding a new feature.'
+  - pr: 45911
+    author: jbrockmendel
+    file: null
+    quote: 'closes #xxxx (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added an entry in the latest doc/source/whatsnew/vX.X.X.rst
+      file if fixing a bug or adding a new feature. Among other things, we avoid re-calculating ''mask''
+      when splitting.'
+  - pr: 45996
+    author: mroeschke
+    file: null
+    quote: 'closes #39197 (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed.'
+  - pr: 46107
+    author: jbrockmendel
+    file: null
+    quote: 'closes #xxxx (Replace xxxx with the Github issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added an entry in the latest doc/source/whatsnew/vX.X.X.rst
+      file if fixing a bug or adding a new feature. xref #37493 We have existing tests with MaskedArrays
+      for this.'
+- id: c5ffecc1-5220-433e-880a-c7498baa850e
+  statement: Tests specific to array types should be placed in the corresponding test files under pandas/tests/arrays/
+  scope: directory
+  scope_pattern: pandas/tests/arrays/%
+  confidence: 0.979
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 33985
+    author: jorisvandenbossche
+    file: pandas/tests/extension/test_string.py
+    quote: Can you move this test to /tests/arrays/string_/test_string.py ? (the tests in /extension/
+      are all common tests (shared among dtypes), while in /arrays/ we keep specific tests)
+  - pr: 36249
+    author: asishm
+    file: pandas/tests/test_strings.py
+    quote: string arrays are already tested here https://github.com/pandas-dev/pandas/blob/1.1.x/pandas/tests/test_strings.py#L3530-L3531
+      parametrizing over string dtype and na=True/False was making it a bit tricky as these methods return
+      boolean series causing a dtype mismatch (boolean vs object)
+  - pr: 39751
+    author: jorisvandenbossche
+    file: pandas/core/arrays/numeric.py
+    quote: Not for general EA, but for the numeric arrays specifically, yes. As mentioned on the other
+      PR, I would create a new test_function.py in the /tests/arrays/masked/ dir for this.
+  - pr: 44186
+    author: jbrockmendel
+    file: pandas/core/arrays/masked.py
+    quote: some other EAs use a _validate_setitem_value; id start by trying to adapt that pattern. tests
+      would go in tests/arrays/(integer|masked|floating|boolean)
+- id: fcbe46c4-f7ef-439d-9bed-feb1178aa205
+  statement: Always add tests and type annotations for new arguments, methods, or functions, and update
+    the changelog when fixing a bug or adding a new feature.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.979
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 47331
+    author: phofl
+    file: null
+    quote: Tests added and passed if fixing a bug or adding a new feature All code checks passed. Added
+      type annotations to new arguments/methods/functions. Added an entry in the latest doc/source/whatsnew/vX.X.X.rst
+      file if fixing a bug or adding a new feature. I think this is more sensible than the previous version,
+      where an er
+  - pr: 50396
+    author: jorisvandenbossche
+    file: null
+    quote: This adds tests for assert_almost_equal (used by assert_series_equal et al in case of object
+      dtype arrays) that all pass on pandas main with released numpy (except for two cases with dict of
+      array), and fixes the implementation of array_equivalent (used by assert_almost_equal) to return
+      False instead of raising an erro
+  - pr: 58072
+    author: jorisvandenbossche
+    file: null
+    quote: 'Adding a strict_na=False option to our assert functions (the default of True keeps the new
+      behaviour enforced on main). This keyword is only relevant for object dtype (or when using that
+      code path when specifying check_dtype=False and having different dtypes). This was brought up in
+      the original PR, see #52081 (comment'
+  - pr: 58085
+    author: rhshadrach
+    file: null
+    quote: 'closes #57723 (Replace xxxx with the GitHub issue number) Tests added and passed if fixing
+      a bug or adding a new feature All code checks passed. Added type annotations to new arguments/methods/functions.
+      Added an entry in the latest doc/source/whatsnew/vX.X.X.rst file if fixing a bug or adding a new
+      feature. The one be'
+- id: a1b885ac-b49d-48c7-9ece-2a6e9e7384c4
+  statement: Use the match parameter in pytest.raises to check the error message in tests.
+  scope: testing
+  scope_pattern: null
+  confidence: 0.979
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 24398
+    author: jschendel
+    file: pandas/tests/arrays/categorical/test_constructors.py
+    quote: Can you use the match parameter to check the error message here and other instances you're
+      editing? IIRC there's an effort underway to add these in across the tests.
+  - pr: 25434
+    author: jschendel
+    file: pandas/tests/io/json/test_pandas.py
+    quote: Can you check the error message using the match parameter of pytest.raises? There's an ongoing
+      effort to add this to all tests that check if an error was raised.
+  - pr: 25968
+    author: gfyoung
+    file: pandas/tests/io/test_stata.py
+    quote: Would it be possible check more of the error message? AFAICT, this modified test would pass
+      independently of the changes you made to the error message above.
+  - pr: 26400
+    author: gfyoung
+    file: pandas/tests/tseries/offsets/test_offsets.py
+    quote: Can you update the pytest.raises calls (for this entire test function) to include a check for
+      the error message? Just pass in match parameter that indicates the expected message.
+- id: 90da81c8-24f2-4c97-a86f-ef7570a2d7cd
+  statement: Add a comment with the GitHub issue number at the top of each test instead of using a docstring.
+  scope: file
+  scope_pattern: pandas/tests/%
+  confidence: 0.979
+  evidence_count: 8
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 14446
+    author: jorisvandenbossche
+    file: pandas/tests/frame/test_convert_to.py
+    quote: 'Can you add this as a comment instead of docstring? (docstrings hide the test name in the
+      output of nosetests) Also just the number is fine, like # GH 13937'
+  - pr: 22011
+    author: WillAyd
+    file: pandas/tests/test_common.py
+    quote: 'If you can reduce the amount of comments that would be ideal. Citing this as a specific example
+      it doesn''t add anything that''s not already known from the test name. Generally we just go # GHXXXXX
+      as a comment at the beginning of the test to reference the original issue'
+  - pr: 28705
+    author: WillAyd
+    file: doc/source/development/contributing.rst
+    quote: 'See the test case in #28662 how it has # GH XXXX as a comment at the top of the test (you
+      can find this in other PRs as well) You can add that in the test case shown in this file'
+  - pr: 34169
+    author: mroeschke
+    file: pandas/tests/frame/methods/test_describe.py
+    quote: 'Could you remove the extra _ in test__ Could you add the issue number as a comment? This test
+      should test this behavior: #32409 (comment)'
+- id: d1fda019-c28d-4b10-ab51-2b943871a1d1
   statement: 'Reference the issue number in a comment at the beginning of each test function using the
     format # GH <issue number>.'
   scope: file
@@ -53,64 +1567,121 @@ rules:
     file: pandas/tests/test_internals.py
     quote: 'Can you turn this into a normal comment (with #)? Otherwise the test name does not show up
       in the nosetests output. You can also add the issue number'
-- id: fe2d18b3-326d-477d-869b-5e2bdf3a0fb1
-  statement: In tests, always construct the expected output explicitly and use tm.assert_frame_equal(result,
-    expected) for assertions.
-  scope: testing
-  scope_pattern: null
-  confidence: 0.969
-  evidence_count: 16
-  verdict: unreviewed
-  note: ''
-  evidence:
-  - pr: 28540
+  - pr: 21933
+    author: gfyoung
+    file: pandas/tests/indexes/timedeltas/test_construction.py
+    quote: More importantly, you should reference the issue number in a comment beyond the function def
+      line. Same applies to all tests that you have added.
+  - pr: 22011
     author: WillAyd
-    file: pandas/tests/reshape/test_pivot.py
-    quote: Can you construct the expected output and use tm.assert_frame_equal(result, expected instead?
-      You should see that in a lot of other tests
-  - pr: 29372
-    author: mroeschke
-    file: pandas/tests/frame/test_dtypes.py
-    quote: For these two assertions, can you construct the expected dataframe result and use tm.assert_frame_equal?
-      result = ... expected = ... tm.assert_frame_equal(result, expected)
-- id: e31408e3-a9f9-4cf0-aede-6a9dead869fd
-  statement: For performance-related changes, contributors must run ASV benchmarks and report the results
-    to ensure no regressions are introduced.
-  scope: process
-  scope_pattern: null
-  confidence: 0.942
-  evidence_count: 8
-  verdict: unreviewed
-  note: ''
-  evidence:
-  - pr: 13277
-    author: jorisvandenbossche
-    file: null
-    quote: '@MaximilianR Can you run some of the asv benchmarks to check there is no impact on performance?
-      (also the plotting benchmarks, we have see regressions there in the past due to changes in period
-      index)'
-  - pr: 21274
-    author: WillAyd
-    file: null
-    quote: Typically for performance-related changes we look for an ASV to measure and track over time.
-      Can you add one to asv_bench/benchmarks/frame_methods.py and post the results of the benchmark here?
-- id: 24dd3095-387a-4314-97dd-0fd01b829ee3
-  statement: Follow the NumPy dtype hierarchy for consistency in dtype implementation.
+    file: pandas/tests/test_common.py
+    quote: 'If you can reduce the amount of comments that would be ideal. Citing this as a specific example
+      it doesn''t add anything that''s not already known from the test name. Generally we just go # GHXXXXX
+      as a comment at the beginning of the test to reference the original issue'
+- id: 63fb5d43-4ac4-490f-94c5-3976cda0560f
+  statement: For any PR fixing a bug, always include a test for the fixed behavior.
   scope: repo
   scope_pattern: null
-  confidence: 0.915
+  confidence: 0.979
   evidence_count: 8
   verdict: unreviewed
   note: ''
   evidence:
-  - pr: 7434
-    author: cpcloud
+  - pr: 15461
+    author: toobaz
     file: null
-    quote: '@jreback i think ''integer'' and ''int'' should mean different things to be consistent with
-      numpy; i''m also not really too keen on ''numeric'' since that''s not a dtype, but i''m allowing
-      ''number'''
-  - pr: 7434
-    author: cpcloud
+    quote: Thanks for the reference to the tests and docs I had missed. Actually, while "exploring" more...
+      I noticed that my PR does introduce a test for level, since before I was asked for it :-) And this
+      happens (and I didn't remember) precisely because I copied the tests from Series and they just worked.
+      So my grepping was re
+  - pr: 45373
+    author: jbrockmendel
     file: null
-    quote: i was trying to limit the variation and keep consistency with the numpy dtype hierarchy rather
-      than fragment into another convention that's slightly different from numpy
+    quote: '@Shashank-Shet thanks for taking a look at this. For any PR fixing a bug, there should always
+      be a test for the fixed behavior. In this case it would go somewhere like tests/indexes/categorical/tests_indexing.py
+      It looks like this broke some existing tests. That suggests that either the existing tests have
+      a problem, o'
+  - pr: 54234
+    author: rhshadrach
+    file: null
+    quote: Are the test changes for changed/fixed behavior or just fleshing out the test suite? If the
+      latter, could split that into a precursor PR? The only one that can be moved to a precursor is the
+      added test test_idxmin_idxmax_skipna_false. All the rest are fixing the behavior with unobserved
+      categoricals as mentioned in the
+  - pr: 55319
+    author: datapythonista
+    file: null
+    quote: Thanks for the contribution @PiotrekB416, and sorry it too so long to review, seems like this
+      PR was forgotten in the long list of PRs we have. It's a bit difficult to understand all possible
+      cases reading the diff, and I'm worried that by fixing the bug we may be introducing new ones. What
+      I'd like to see in general i
+- id: 95502c9a-38ef-4b16-9908-1e45047b59a4
+  statement: Always construct the expected DataFrame explicitly from scratch in tests.
+  scope: testing
+  scope_pattern: null
+  confidence: 0.976
+  evidence_count: 15
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 7336
+    author: cpcloud
+    file: pandas/tests/test_series.py
+    quote: explicitly construct the Series that you want and compare the result with the expected using
+      tm.assert_series_equal(result, expected).
+  - pr: 13481
+    author: gfyoung
+    file: pandas/io/tests/parser/python_parser_only.py
+    quote: Better practice is to explicitly define your expected output by constructing the DataFrame
+      itself. If you want, you can simplify your data input to make this construction easier to write
+      out (does your data need to be that long for the error to be triggered - why not that nice simple
+      data you used in your initial commi
+  - pr: 16960
+    author: gfyoung
+    file: pandas/tests/sparse/test_series.py
+    quote: 'I would separate out your pd.Series({1: 1}, index=[0, 1, 2]).count() as a variable like "expected"
+      so that it''s a little clearer what the expected output is.'
+  - pr: 16960
+    author: gfyoung
+    file: pandas/tests/sparse/test_series.py
+    quote: I think what you should do is construct your expected result via instantiation as a Series
+      (i.e. pass the dict into the Series constructor). Then pass the Series object into the SparseSeries
+      constructor. That becomes your expected output.
+- id: c892c485-b517-460b-be5d-5985198bb4e0
+  statement: For any changes that might impact performance, ensure there is a benchmark in asv_bench or
+    add one if it doesn't exist.
+  scope: repo
+  scope_pattern: null
+  confidence: 0.975
+  evidence_count: 15
+  verdict: unreviewed
+  note: ''
+  evidence:
+  - pr: 4722
+    author: jorisvandenbossche
+    file: null
+    quote: '@jreback and @jtratner Thanks for the comments. Adding tests with comparing images does lead
+      a little bit too far for this PR (and for me) I think (that is another discussion), but I will look
+      at adding it to the current tests (the _ckeck_plot_works) and to add something to the vbench suite.
+      What is actually the differ'
+  - pr: 9715
+    author: jorisvandenbossche
+    file: null
+    quote: In the meantime I also think a/some new vbench had been added, so that one will have to be
+      converted as well. @jreback how do you see the transition? Because for the current and new PRs we
+      have to decide how to add new tests. As asv tests once this is merged? Or still vbenches? I would
+      say to just go with asv (if the m
+  - pr: 15456
+    author: jorisvandenbossche
+    file: null
+    quote: 'Just to make sure I understand, are you suggesting that I test re.sub versus pattern.sub (where
+      pattern is a compiled regex) using asv? No, the idea is to have a test that uses str.replace itself
+      that you can benchmark, and eg in this case could detect a slowdown if you change the implementation
+      from using pattern.sub '
+  - pr: 18446
+    author: jbrockmendel
+    file: pandas/_libs/tslibs/timestamps.pyx
+    quote: if it makes a diff then add an asv I'm shocked to see there isn't already an asv for "Timestamp
+      addition/subtraction". I'll make one, or see if one isn't hidden somewhere other than benchmarks/timestamp.py.
+      If it is somewhere else, will moving them around cause a problem for backward-comparability? can
+      you perf check t
