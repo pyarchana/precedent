@@ -134,6 +134,7 @@ async def extract(
     min_distinct_prs: int,
     offset: int,
     concurrency: int,
+    authors: tuple[str, ...] | None = None,
 ) -> int:
     settings = get_settings()
     engine = create_engine(dsn)
@@ -157,7 +158,7 @@ async def extract(
 
         # Over-fetch seeds: many will be skipped for falling inside a cluster
         # already built, or for not clearing the distinct-PR filter.
-        seeds = await fetch_seeds(engine, repo_id, limit=limit * 4, offset=offset)
+        seeds = await fetch_seeds(engine, repo_id, limit=limit * 4, offset=offset, authors=authors)
         log.info("%d candidate seeds, ceiling $%.2f", len(seeds), max_spend)
 
         stop = False
@@ -285,6 +286,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--min-distinct-prs", type=int, default=3)
     parser.add_argument("--offset", type=int, default=0, help="Skip this many seeds.")
     parser.add_argument("--concurrency", type=int, default=8)
+    parser.add_argument(
+        "--authors",
+        default=None,
+        help="Comma-separated logins to seed from. Use to mine newly visible evidence "
+        "rather than resampling the whole corpus.",
+    )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
 
@@ -310,6 +317,9 @@ def main(argv: list[str] | None = None) -> int:
             min_distinct_prs=args.min_distinct_prs,
             offset=args.offset,
             concurrency=args.concurrency,
+            authors=tuple(a.strip() for a in args.authors.split(",") if a.strip())
+            if args.authors
+            else None,
         )
     )
 

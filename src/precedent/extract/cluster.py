@@ -26,7 +26,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 log = logging.getLogger(__name__)
@@ -48,16 +48,29 @@ MIN_DISTINCT_PRS = 3
 # one voice, and this also catches boilerplate posted by a single maintainer.
 MIN_DISTINCT_AUTHORS = 2
 
-SELECT_SEEDS = text("""
+_SELECT_SEEDS = """
     SELECT id
     FROM review_comments
     WHERE repo_id = :repo_id
       AND is_maintainer
       AND length(body) BETWEEN :min_length AND :max_length
+      {author_filter}
     ORDER BY id
     LIMIT :limit
     OFFSET :offset
-""")
+"""
+
+SELECT_SEEDS = text(_SELECT_SEEDS.format(author_filter=""))
+
+# Seeding from named reviewers. `id` is a random UUID, so the ordering above is
+# effectively a random sample of the whole corpus, which is the right default.
+# It is the wrong thing when a specific body of evidence has just become
+# visible: reclassifying seven former maintainers added 19,485 seeds to a pool
+# of 67,574, so an untargeted run would spend 71% of its budget re-mining
+# comments that have already been mined.
+SELECT_SEEDS_BY_AUTHOR = text(
+    _SELECT_SEEDS.format(author_filter="AND lower(author) IN :authors")
+).bindparams(bindparam("authors", expanding=True))
 
 # The seed's own stored vector is the query, so building a cluster needs no
 # embedding call. It must be read first and passed back as a bound parameter:
@@ -162,21 +175,26 @@ async def fetch_seeds(
     offset: int = 0,
     min_length: int = 150,
     max_length: int = 1500,
+    authors: tuple[str, ...] | None = None,
 ) -> list[str]:
-    """Candidate cluster centres: maintainer comments long enough to hold a rule."""
+    """Candidate cluster centres: maintainer comments long enough to hold a rule.
+
+    `authors` restricts seeding to named logins, matched case-insensitively.
+    """
+    params: dict[str, object] = {
+        "repo_id": repo_id,
+        "limit": limit,
+        "offset": offset,
+        "min_length": min_length,
+        "max_length": max_length,
+    }
+    statement = SELECT_SEEDS
+    if authors:
+        statement = SELECT_SEEDS_BY_AUTHOR
+        params["authors"] = [a.lower() for a in authors]
+
     async with engine.connect() as conn:
-        rows = (
-            await conn.execute(
-                SELECT_SEEDS,
-                {
-                    "repo_id": repo_id,
-                    "limit": limit,
-                    "offset": offset,
-                    "min_length": min_length,
-                    "max_length": max_length,
-                },
-            )
-        ).all()
+        rows = (await conn.execute(statement, params)).all()
     return [str(r[0]) for r in rows]
 
 
