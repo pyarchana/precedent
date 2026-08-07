@@ -37,6 +37,45 @@ class TestIsMaintainer:
         assert is_maintainer("member")
 
 
+class TestFormerMaintainers:
+    """GitHub reports authorAssociation from *current* permissions.
+
+    Anyone who has stepped back from a project has their whole history
+    reported as CONTRIBUTOR. On pandas this misclassifies jreback, who wrote
+    74,077 comments over thirteen years and requested changes more often than
+    anyone else in the project's history.
+    """
+
+    known = frozenset({"jreback", "tomaugspurger"})
+
+    def test_a_former_maintainer_is_still_a_maintainer(self):
+        assert is_maintainer("CONTRIBUTOR", "jreback", self.known)
+
+    def test_the_override_is_case_insensitive_on_the_login(self):
+        # The list is stored lowercased; GitHub logins are not.
+        assert is_maintainer("CONTRIBUTOR", "TomAugspurger", self.known)
+
+    def test_an_ordinary_contributor_is_unaffected(self):
+        assert not is_maintainer("CONTRIBUTOR", "somebody", self.known)
+
+    def test_a_current_member_needs_no_override(self):
+        assert is_maintainer("MEMBER", "jbrockmendel", frozenset())
+
+    def test_an_empty_list_leaves_the_old_behaviour_intact(self):
+        assert not is_maintainer("CONTRIBUTOR", "jreback", frozenset())
+
+    def test_a_missing_login_does_not_match(self):
+        assert not is_maintainer("CONTRIBUTOR", None, self.known)
+
+    def test_the_override_reaches_records(self):
+        pr = _pr(number=5, author={"__typename": "User", "login": "jreback"})
+        kept, _ = normalize_page(_page(pr), self.known)
+        assert kept[0].is_maintainer
+        # The association is still recorded as GitHub reported it, so the
+        # override is visible rather than disguised as membership.
+        assert kept[0].author_association == "CONTRIBUTOR"
+
+
 class TestIsBot:
     def test_graphql_bot_typename(self):
         assert is_bot({"__typename": "Bot", "login": "dependabot"})

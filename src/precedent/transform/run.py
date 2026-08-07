@@ -20,6 +20,7 @@ from precedent.config import get_settings
 from precedent.db.engine import create_engine
 from precedent.ingest.staging import RawStore
 from precedent.transform.load import ensure_repo, refresh_contributors, write_batch
+from precedent.transform.maintainers import load_maintainers
 from precedent.transform.normalize import normalize_page
 
 log = logging.getLogger("precedent.transform")
@@ -38,6 +39,7 @@ async def transform(
 ) -> int:
     store = RawStore(raw_dir, f"{owner}/{name}")
     engine = create_engine(dsn)
+    known_maintainers = load_maintainers(f"{owner}/{name}")
 
     kinds: Counter[str] = Counter()
     reasons: Counter[str] = Counter()
@@ -55,7 +57,7 @@ async def transform(
             if max_pages is not None and pages >= max_pages:
                 break
 
-            kept, dropped = normalize_page(envelope["data"])
+            kept, dropped = normalize_page(envelope["data"], known_maintainers)
             pending_comments.extend(kept)
             pending_rejects.extend(dropped)
             kinds.update(c.kind for c in kept)

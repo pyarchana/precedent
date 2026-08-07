@@ -16,6 +16,14 @@ from typing import Any
 # CONTRIBUTOR means "has had a PR merged", which is not the same thing and is
 # deliberately excluded: the whole point of confidence weighting is that a
 # maintainer saying something counts for more.
+#
+# This field is necessary and **not sufficient**. GitHub computes it from the
+# permissions the author holds *now*, not the permissions they held when they
+# wrote the comment, so anyone who has stepped back from a project reads as
+# CONTRIBUTOR across their entire history. On pandas that misclassifies the
+# single most prolific reviewer in the project's life. `known_maintainers`
+# carries the people behaviour identifies that this field misses; see
+# scripts/derive_maintainers.py.
 MAINTAINER_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 
 # Bots that comment on pandas PRs. Matching is exact on lowercased login, in
@@ -106,8 +114,20 @@ def is_bot(author: dict[str, Any] | None) -> bool:
     return login.endswith("[bot]") or login in KNOWN_BOTS
 
 
-def is_maintainer(association: str | None) -> bool:
-    return (association or "").upper() in MAINTAINER_ASSOCIATIONS
+def is_maintainer(
+    association: str | None,
+    login: str | None = None,
+    known_maintainers: frozenset[str] = frozenset(),
+) -> bool:
+    """Whether this comment carries a maintainer's authority.
+
+    `known_maintainers` is checked case-insensitively and overrides the
+    association, because a former maintainer's review comments were authoritative
+    when they were written and nothing about them changed when the person left.
+    """
+    if (association or "").upper() in MAINTAINER_ASSOCIATIONS:
+        return True
+    return bool(login) and login.lower() in known_maintainers
 
 
 def _parse_ts(value: str) -> datetime:
@@ -118,15 +138,21 @@ def _author_login(author: dict[str, Any] | None) -> str | None:
     return author.get("login") if author else None
 
 
-def normalize_page(page: dict[str, Any]) -> tuple[list[CommentRecord], list[RejectRecord]]:
-    """Flatten one staged page into comment rows plus a record of what was dropped."""
+def normalize_page(
+    page: dict[str, Any], known_maintainers: frozenset[str] = frozenset()
+) -> tuple[list[CommentRecord], list[RejectRecord]]:
+    """Flatten one staged page into comment rows plus a record of what was dropped.
+
+    `known_maintainers` should be lowercased logins; see
+    `precedent.transform.maintainers.load_maintainers`.
+    """
     kept: list[CommentRecord] = []
     dropped: list[RejectRecord] = []
 
     for pr in page["repository"]["pullRequests"]["nodes"]:
         if pr is None:
             continue
-        for record in _pr_records(pr):
+        for record in _pr_records(pr, known_maintainers):
             if isinstance(record, RejectRecord):
                 dropped.append(record)
             else:
@@ -143,6 +169,7 @@ def _emit(
     pr_number: int,
     body: str | None,
     created_at: str | None,
+    known_maintainers: frozenset[str] = frozenset(),
     **extra: Any,
 ) -> CommentRecord | RejectRecord:
     author = node.get("author")
@@ -167,19 +194,24 @@ def _emit(
         created_at=_parse_ts(created_at),
         author=login,
         author_association=association,
-        is_maintainer=is_maintainer(association),
+        is_maintainer=is_maintainer(association, login, known_maintainers),
         url=node.get("url"),
         **extra,
     )
 
 
-def _pr_records(pr: dict[str, Any]) -> Iterator[CommentRecord | RejectRecord]:
+def _pr_records(
+    pr: dict[str, Any], known_maintainers: frozenset[str] = frozenset()
+) -> Iterator[CommentRecord | RejectRecord]:
     number = pr["number"]
+
+    def emit(node: dict[str, Any], **kwargs: Any) -> CommentRecord | RejectRecord:
+        return _emit(node, known_maintainers=known_maintainers, **kwargs)
 
     # The PR description. The query does not select the pull request's own node
     # id, so this one is synthesised. It is deterministic, which is all the
     # upsert needs.
-    yield _emit(
+    yield emit(
         pr,
         node_id=f"pr:{number}:body",
         kind="pr_body",
@@ -192,7 +224,7 @@ def _pr_records(pr: dict[str, Any]) -> Iterator[CommentRecord | RejectRecord]:
         if review is None:
             continue
         # Approvals with no text carry no knowledge; they fall out as empty_body.
-        yield _emit(
+        yield emit(
             review,
             node_id=review["id"],
             kind="review_summary",
@@ -207,7 +239,7 @@ def _pr_records(pr: dict[str, Any]) -> Iterator[CommentRecord | RejectRecord]:
         for comment in (thread.get("comments") or {}).get("nodes") or []:
             if comment is None:
                 continue
-            yield _emit(
+            yield emit(
                 comment,
                 node_id=comment["id"],
                 kind="review_thread",
@@ -224,7 +256,7 @@ def _pr_records(pr: dict[str, Any]) -> Iterator[CommentRecord | RejectRecord]:
     for comment in (pr.get("comments") or {}).get("nodes") or []:
         if comment is None:
             continue
-        yield _emit(
+        yield emit(
             comment,
             node_id=comment["id"],
             kind="issue_comment",

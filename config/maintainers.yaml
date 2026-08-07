@@ -1,0 +1,400 @@
+# Derived by scripts/derive_maintainers.py. Do not hand-edit counts.
+#
+# GitHub reports authorAssociation from current permissions, so anyone who
+# has stepped back from the project reads as CONTRIBUTOR across their whole
+# history. Entries with basis 'behaviour' are the ones that field misses.
+repo: pandas-dev/pandas
+thresholds:
+  min_gated_prs: 50
+  min_tenure_days: 365
+maintainers:
+- login: jreback
+  basis: behaviour
+  gated_prs: 5903
+  approvals: 4457
+  changes_requested: 8436
+  comments: 90203
+  first_seen: '2012-09-08'
+  last_seen: '2025-06-13'
+  associations_reported:
+  - CONTRIBUTOR
+- login: jbrockmendel
+  basis: association
+  gated_prs: 529
+  approvals: 535
+  changes_requested: 3
+  comments: 42921
+  first_seen: '2017-04-04'
+  last_seen: '2026-07-30'
+  associations_reported:
+  - MEMBER
+- login: mroeschke
+  basis: association
+  gated_prs: 6392
+  approvals: 6320
+  changes_requested: 379
+  comments: 31782
+  first_seen: '2016-10-29'
+  last_seen: '2026-07-28'
+  associations_reported:
+  - MEMBER
+- login: jorisvandenbossche
+  basis: association
+  gated_prs: 1295
+  approvals: 1212
+  changes_requested: 176
+  comments: 27640
+  first_seen: '2013-06-22'
+  last_seen: '2026-07-30'
+  associations_reported:
+  - MEMBER
+- login: WillAyd
+  basis: association
+  gated_prs: 2166
+  approvals: 1711
+  changes_requested: 1407
+  comments: 17992
+  first_seen: '2016-08-15'
+  last_seen: '2026-07-28'
+  associations_reported:
+  - MEMBER
+- login: TomAugspurger
+  basis: behaviour
+  gated_prs: 598
+  approvals: 607
+  changes_requested: 26
+  comments: 15394
+  first_seen: '2013-04-27'
+  last_seen: '2026-04-29'
+  associations_reported:
+  - CONTRIBUTOR
+- login: simonjayhawkins
+  basis: association
+  gated_prs: 599
+  approvals: 542
+  changes_requested: 178
+  comments: 11380
+  first_seen: '2018-09-04'
+  last_seen: '2026-03-15'
+  associations_reported:
+  - MEMBER
+- login: phofl
+  basis: association
+  gated_prs: 810
+  approvals: 756
+  changes_requested: 96
+  comments: 11202
+  first_seen: '2020-03-24'
+  last_seen: '2025-11-03'
+  associations_reported:
+  - MEMBER
+- login: rhshadrach
+  basis: association
+  gated_prs: 810
+  approvals: 659
+  changes_requested: 777
+  comments: 9475
+  first_seen: '2020-03-07'
+  last_seen: '2026-07-27'
+  associations_reported:
+  - MEMBER
+- login: gfyoung
+  basis: association
+  gated_prs: 377
+  approvals: 363
+  changes_requested: 20
+  comments: 8332
+  first_seen: '2016-02-10'
+  last_seen: '2023-01-12'
+  associations_reported:
+  - MEMBER
+- login: MarcoGorelli
+  basis: association
+  gated_prs: 892
+  approvals: 813
+  changes_requested: 607
+  comments: 8186
+  first_seen: '2019-08-12'
+  last_seen: '2026-07-10'
+  associations_reported:
+  - MEMBER
+- login: datapythonista
+  basis: association
+  gated_prs: 641
+  approvals: 641
+  changes_requested: 107
+  comments: 7700
+  first_seen: '2017-05-27'
+  last_seen: '2025-07-14'
+  associations_reported:
+  - MEMBER
+- login: topper-123
+  basis: behaviour
+  gated_prs: 108
+  approvals: 98
+  changes_requested: 25
+  comments: 3774
+  first_seen: '2017-06-22'
+  last_seen: '2023-09-28'
+  associations_reported:
+  - CONTRIBUTOR
+- login: twoertwein
+  basis: association
+  gated_prs: 136
+  approvals: 134
+  changes_requested: 6
+  comments: 3266
+  first_seen: '2020-07-05'
+  last_seen: '2025-11-12'
+  associations_reported:
+  - MEMBER
+- login: cpcloud
+  basis: association
+  gated_prs: 2
+  approvals: 2
+  changes_requested: 0
+  comments: 2824
+  first_seen: '2012-11-11'
+  last_seen: '2022-08-19'
+  associations_reported:
+  - MEMBER
+- login: Dr-Irv
+  basis: behaviour
+  gated_prs: 97
+  approvals: 79
+  changes_requested: 78
+  comments: 2677
+  first_seen: '2015-10-13'
+  last_seen: '2026-07-29'
+  associations_reported:
+  - CONTRIBUTOR
+- login: lithomas1
+  basis: behaviour
+  gated_prs: 176
+  approvals: 162
+  changes_requested: 30
+  comments: 2676
+  first_seen: '2019-12-12'
+  last_seen: '2025-06-06'
+  associations_reported:
+  - CONTRIBUTOR
+- login: attack68
+  basis: behaviour
+  gated_prs: 84
+  approvals: 72
+  changes_requested: 49
+  comments: 2078
+  first_seen: '2020-08-06'
+  last_seen: '2026-05-07'
+  associations_reported:
+  - CONTRIBUTOR
+- login: dsaxton
+  basis: behaviour
+  gated_prs: 51
+  approvals: 52
+  changes_requested: 1
+  comments: 1913
+  first_seen: '2018-08-12'
+  last_seen: '2021-05-10'
+  associations_reported:
+  - CONTRIBUTOR
+- login: jschendel
+  basis: association
+  gated_prs: 60
+  approvals: 54
+  changes_requested: 17
+  comments: 1880
+  first_seen: '2017-08-03'
+  last_seen: '2020-05-05'
+  associations_reported:
+  - MEMBER
+- login: sinhrks
+  basis: association
+  gated_prs: 8
+  approvals: 6
+  changes_requested: 9
+  comments: 1806
+  first_seen: '2012-09-22'
+  last_seen: '2019-01-22'
+  associations_reported:
+  - MEMBER
+- login: shoyer
+  basis: association
+  gated_prs: 5
+  approvals: 5
+  changes_requested: 0
+  comments: 1464
+  first_seen: '2014-01-23'
+  last_seen: '2022-07-09'
+  associations_reported:
+  - MEMBER
+- login: toobaz
+  basis: association
+  gated_prs: 7
+  approvals: 3
+  changes_requested: 8
+  comments: 1381
+  first_seen: '2014-02-27'
+  last_seen: '2022-09-08'
+  associations_reported:
+  - MEMBER
+- login: mzeitlin11
+  basis: association
+  gated_prs: 41
+  approvals: 37
+  changes_requested: 5
+  comments: 1296
+  first_seen: '2020-10-23'
+  last_seen: '2022-11-01'
+  associations_reported:
+  - MEMBER
+- login: alimcmaster1
+  basis: association
+  gated_prs: 86
+  approvals: 57
+  changes_requested: 35
+  comments: 1227
+  first_seen: '2018-06-10'
+  last_seen: '2024-03-19'
+  associations_reported:
+  - MEMBER
+- login: wesm
+  basis: association
+  gated_prs: 2
+  approvals: 2
+  changes_requested: 0
+  comments: 1089
+  first_seen: '2011-02-24'
+  last_seen: '2020-06-21'
+  associations_reported:
+  - MEMBER
+- login: Alvaro-Kothe
+  basis: association
+  gated_prs: 24
+  approvals: 21
+  changes_requested: 8
+  comments: 1032
+  first_seen: '2025-08-22'
+  last_seen: '2026-07-29'
+  associations_reported:
+  - MEMBER
+- login: lukemanley
+  basis: association
+  gated_prs: 7
+  approvals: 7
+  changes_requested: 0
+  comments: 830
+  first_seen: '2022-01-03'
+  last_seen: '2024-07-15'
+  associations_reported:
+  - MEMBER
+- login: fangchenli
+  basis: association
+  gated_prs: 21
+  approvals: 16
+  changes_requested: 11
+  comments: 616
+  first_seen: '2020-06-08'
+  last_seen: '2026-07-30'
+  associations_reported:
+  - MEMBER
+- login: AlexKirko
+  basis: association
+  gated_prs: 0
+  approvals: 0
+  changes_requested: 0
+  comments: 481
+  first_seen: '2019-12-12'
+  last_seen: '2023-09-12'
+  associations_reported:
+  - MEMBER
+- login: DeaMariaLeon
+  basis: association
+  gated_prs: 0
+  approvals: 0
+  changes_requested: 0
+  comments: 474
+  first_seen: '2022-12-02'
+  last_seen: '2024-04-06'
+  associations_reported:
+  - MEMBER
+- login: Aloqeely
+  basis: association
+  gated_prs: 0
+  approvals: 0
+  changes_requested: 0
+  comments: 278
+  first_seen: '2024-03-18'
+  last_seen: '2025-05-30'
+  associations_reported:
+  - MEMBER
+- login: erfannariman
+  basis: association
+  gated_prs: 5
+  approvals: 5
+  changes_requested: 0
+  comments: 270
+  first_seen: '2019-05-24'
+  last_seen: '2024-10-12'
+  associations_reported:
+  - MEMBER
+- login: CloseChoice
+  basis: association
+  gated_prs: 1
+  approvals: 1
+  changes_requested: 0
+  comments: 183
+  first_seen: '2020-04-18'
+  last_seen: '2026-05-16'
+  associations_reported:
+  - MEMBER
+- login: noatamir
+  basis: association
+  gated_prs: 4
+  approvals: 4
+  changes_requested: 0
+  comments: 177
+  first_seen: '2022-06-14'
+  last_seen: '2023-08-10'
+  associations_reported:
+  - MEMBER
+- login: arthurlw
+  basis: association
+  gated_prs: 1
+  approvals: 0
+  changes_requested: 1
+  comments: 135
+  first_seen: '2025-02-26'
+  last_seen: '2026-01-24'
+  associations_reported:
+  - MEMBER
+- login: snitish
+  basis: association
+  gated_prs: 0
+  approvals: 0
+  changes_requested: 0
+  comments: 112
+  first_seen: '2024-11-23'
+  last_seen: '2025-04-10'
+  associations_reported:
+  - MEMBER
+- login: asishm
+  basis: association
+  gated_prs: 1
+  approvals: 0
+  changes_requested: 1
+  comments: 108
+  first_seen: '2019-10-08'
+  last_seen: '2025-04-03'
+  associations_reported:
+  - MEMBER
+- login: loicdiridollou
+  basis: association
+  gated_prs: 0
+  approvals: 0
+  changes_requested: 0
+  comments: 60
+  first_seen: '2021-11-06'
+  last_seen: '2025-12-24'
+  associations_reported:
+  - MEMBER
