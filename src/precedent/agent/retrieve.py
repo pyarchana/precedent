@@ -14,9 +14,10 @@ way that "pandas convention" is not.
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from dataclasses import dataclass, field
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from precedent.embed.provider import EmbeddingProvider
@@ -46,7 +47,13 @@ class RetrievedRule:
     confidence: float
     evidence_count: int
     distance: float
+    origin: str = "extracted"
     citations: list[SearchHit] = field(default_factory=list)
+
+    @property
+    def is_correction(self) -> bool:
+        """True when a maintainer stated this rule rather than it being inferred."""
+        return self.origin == "correction"
 
     @property
     def is_weak(self) -> bool:
@@ -74,10 +81,10 @@ class Recall:
 
 SEARCH_RULES = text("""
     SELECT id, statement, rationale, scope::STRING AS scope, scope_pattern,
-           confidence, evidence_count, status, distance
+           confidence, evidence_count, status, origin, distance
     FROM (
         SELECT id, statement, rationale, scope, scope_pattern, confidence,
-               evidence_count, status,
+               evidence_count, status, origin,
                embedding <-> CAST(:query AS VECTOR(1536)) AS distance
         FROM rules
         WHERE repo_id = :repo_id
@@ -90,19 +97,32 @@ SEARCH_RULES = text("""
 """)
 
 # The comments a rule was actually learned from. These are what the answer
-# cites, so they are fetched per rule rather than searched for separately:
-# a citation must be evidence *for that rule*, not merely a comment that
+# cites, so they are fetched by rule rather than searched for separately: a
+# citation must be evidence *for that rule*, not merely a comment that
 # resembles the question.
-EVIDENCE_FOR_RULE = text("""
-    SELECT rc.id, rc.pr_number, rc.kind::STRING AS kind, rc.body, rc.author,
-           rc.is_maintainer, rc.file_path, rc.url, rc.created_at
-    FROM rule_evidence re
-    JOIN review_comments rc
-      ON rc.repo_id = re.repo_id AND rc.id = re.comment_id
-    WHERE re.repo_id = :repo_id AND re.rule_id = :rule_id
-    ORDER BY rc.created_at DESC
-    LIMIT :per_rule
-""")
+#
+# Fetched for every rule in one statement. One query per rule meant five
+# sequential round trips to the cluster, which on a cluster in another city is
+# most of the time the agent spends answering. The window function keeps the
+# per-rule limit that the per-rule query used to give.
+EVIDENCE_FOR_RULES = text("""
+        SELECT rule_id, id, pr_number, kind, body, author, is_maintainer,
+               file_path, url, created_at
+        FROM (
+            SELECT re.rule_id, rc.id, rc.pr_number, rc.kind::STRING AS kind,
+                   rc.body, rc.author, rc.is_maintainer, rc.file_path, rc.url,
+                   rc.created_at,
+                   row_number() OVER (
+                       PARTITION BY re.rule_id ORDER BY rc.created_at DESC
+                   ) AS rn
+            FROM rule_evidence re
+            JOIN review_comments rc
+              ON rc.repo_id = re.repo_id AND rc.id = re.comment_id
+            WHERE re.repo_id = :repo_id AND re.rule_id IN :rule_ids
+        )
+        WHERE rn <= :per_rule
+        ORDER BY rule_id, created_at DESC
+    """).bindparams(bindparam("rule_ids", expanding=True))
 
 
 async def recall(
@@ -115,6 +135,8 @@ async def recall(
     comment_k: int = 6,
     per_rule_citations: int = 3,
     max_rule_distance: float = MAX_RULE_DISTANCE,
+    confident_enough: float = 0.75,
+    confident_rules_needed: int = 2,
 ) -> Recall:
     """Retrieve rules and supporting evidence for a question."""
     vector = encode((await provider.embed([question]))[0])
@@ -139,15 +161,15 @@ async def recall(
             .all()
         )
 
-        rules: list[RetrievedRule] = []
-        for row in rows:
+        by_rule: dict[str, list[SearchHit]] = defaultdict(list)
+        if rows:
             evidence = (
                 (
                     await conn.execute(
-                        EVIDENCE_FOR_RULE,
+                        EVIDENCE_FOR_RULES,
                         {
                             "repo_id": repo_id,
-                            "rule_id": str(row["id"]),
+                            "rule_ids": [str(r["id"]) for r in rows],
                             "per_rule": per_rule_citations,
                         },
                     )
@@ -155,37 +177,57 @@ async def recall(
                 .mappings()
                 .all()
             )
-            rules.append(
-                RetrievedRule(
-                    id=str(row["id"]),
-                    statement=row["statement"],
-                    rationale=row["rationale"],
-                    scope=str(row["scope"]),
-                    scope_pattern=row["scope_pattern"],
-                    confidence=float(row["confidence"]),
-                    evidence_count=row["evidence_count"],
-                    distance=float(row["distance"]),
-                    citations=[
-                        SearchHit(
-                            id=str(e["id"]),
-                            pr_number=e["pr_number"],
-                            kind=str(e["kind"]),
-                            body=e["body"],
-                            author=e["author"],
-                            is_maintainer=e["is_maintainer"],
-                            file_path=e["file_path"],
-                            url=e["url"],
-                            created_at=e["created_at"],
-                            distance=0.0,
-                        )
-                        for e in evidence
-                    ],
+            for e in evidence:
+                by_rule[str(e["rule_id"])].append(
+                    SearchHit(
+                        id=str(e["id"]),
+                        pr_number=e["pr_number"],
+                        kind=str(e["kind"]),
+                        body=e["body"],
+                        author=e["author"],
+                        is_maintainer=e["is_maintainer"],
+                        file_path=e["file_path"],
+                        url=e["url"],
+                        created_at=e["created_at"],
+                        distance=0.0,
+                    )
                 )
-            )
 
-    # Episodic memory as well, for questions the rules do not cover. A
+        rules = [
+            RetrievedRule(
+                id=str(row["id"]),
+                statement=row["statement"],
+                rationale=row["rationale"],
+                scope=str(row["scope"]),
+                scope_pattern=row["scope_pattern"],
+                confidence=float(row["confidence"]),
+                evidence_count=row["evidence_count"],
+                distance=float(row["distance"]),
+                origin=str(row["origin"]),
+                citations=by_rule.get(str(row["id"]), []),
+            )
+            for row in rows
+        ]
+
+    # Episodic memory as well, for questions the rules do not cover: a
     # contributor may ask something no convention addresses but that a
     # maintainer once answered directly.
+    #
+    # Skipped when the rules already answer confidently. Citations come from
+    # `rule_evidence` keyed by rule id, not from this search, so its only job
+    # is covering gaps. Searching 60,000 comments to add colour to an answer
+    # that is already well evidenced costs seconds and buys nothing, and it
+    # costs a great deal more whenever the vector index is unavailable.
+    confident = [r for r in rules if r.confidence >= confident_enough]
+    if len(confident) >= confident_rules_needed:
+        log.info(
+            "recall for %r: %d rules (%d confident), skipping comment search",
+            question[:60],
+            len(rules),
+            len(confident),
+        )
+        return Recall(question=question, rules=rules, comments=[])
+
     hits = await search_comments(
         engine, provider, repo_id=repo_id, query_vector=vector, k=comment_k
     )

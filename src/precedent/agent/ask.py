@@ -2,6 +2,11 @@
 
 python -m precedent.agent.ask "Do I need a whatsnew note for a bug fix?"
 python -m precedent.agent.ask --show-material "Where does the GH number go?"
+
+Every answer is recorded as a turn and its reference printed, because a
+maintainer correcting the answer needs to name the answer they mean. Recording
+can be turned off with --no-record for throwaway queries, at the cost of that
+answer no longer being correctable.
 """
 
 from __future__ import annotations
@@ -15,6 +20,7 @@ from sqlalchemy import text
 
 from precedent.agent.answer import answer_question, render_material
 from precedent.agent.retrieve import recall
+from precedent.agent.session import open_session, record_turn
 from precedent.config import get_settings
 from precedent.db.engine import create_engine
 from precedent.embed.provider import OpenAIEmbeddings
@@ -61,6 +67,26 @@ async def main_async(args: argparse.Namespace) -> int:
             print()
 
         result = await answer_question(chat, memory)
+
+        reference = None
+        if not args.no_record:
+            session_id = args.session or await open_session(
+                engine, repo_id=repo_id, contributor_login=args.contributor
+            )
+            turn_number = await record_turn(
+                engine,
+                repo_id=repo_id,
+                session_id=session_id,
+                question=args.question,
+                answer=result.text,
+                # What the answer was built from, not what the question would
+                # retrieve later. A correction has to see the material as it
+                # stood when the answer was given.
+                rule_ids=result.rule_ids,
+                comment_ids=result.comment_ids,
+                answered_from_memory=result.answered,
+            )
+            reference = f"{session_id} {turn_number}"
     finally:
         await provider.aclose()
         await chat.aclose()
@@ -76,8 +102,11 @@ async def main_async(args: argparse.Namespace) -> int:
     )
     if result.cited_prs:
         print(f"cited: {', '.join('#' + str(p) for p in result.cited_prs)}")
-    if result.invented_prs:
-        print(f"FABRICATED CITATIONS: {result.invented_prs}")
+    if reference:
+        print(f'to correct this answer: python -m precedent.agent.correct {reference} "..."')
+    if not result.is_trustworthy:
+        fabricated = [f"#{pr}" for pr in result.invented_prs] + result.invented_corrections
+        print(f"FABRICATED CITATIONS: {', '.join(fabricated)}")
         return 2
     if not result.answered and result.missing:
         print(f"missing: {result.missing}")
@@ -95,6 +124,13 @@ def main() -> int:
     parser.add_argument("--rules", type=int, default=5)
     parser.add_argument("--comments", type=int, default=6)
     parser.add_argument("--show-material", action="store_true", help="Print what was recalled.")
+    parser.add_argument("--session", default=None, help="Continue an existing session.")
+    parser.add_argument("--contributor", default=None, help="Who is asking.")
+    parser.add_argument(
+        "--no-record",
+        action="store_true",
+        help="Do not write the turn. The answer then cannot be corrected.",
+    )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 

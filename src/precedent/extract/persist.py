@@ -133,12 +133,12 @@ INSERT_RULE = text("""
     INSERT INTO rules (
         repo_id, statement, rationale, scope, scope_pattern,
         confidence, evidence_count, maintainer_evidence_count,
-        embedding, embedding_model, first_evidence_at, last_evidence_at
+        embedding, embedding_model, first_evidence_at, last_evidence_at, origin
     ) VALUES (
         :repo_id, :statement, :rationale, CAST(:scope AS rule_scope), :scope_pattern,
         :confidence, :evidence_count, :maintainer_evidence_count,
         CAST(:embedding AS VECTOR(1536)), :embedding_model,
-        :first_evidence_at, :last_evidence_at
+        :first_evidence_at, :last_evidence_at, :origin
     )
     RETURNING id
 """)
@@ -153,8 +153,12 @@ INSERT_EVIDENCE = text("""
 
 # Counts are derived from the evidence table rather than incremented, so that
 # re-running extraction over the same comments cannot inflate a rule.
+# Origin comes back with the counts so confidence is recomputed on the right
+# terms. Without it, any later recount would rescore a correction as though it
+# were an inferred rule and quietly strip its standing.
 RECOUNT = text("""
-    SELECT count(DISTINCT rc.pr_number)  AS prs,
+    SELECT (SELECT origin FROM rules WHERE repo_id = :repo_id AND id = :rule_id) AS origin,
+           count(DISTINCT rc.pr_number)  AS prs,
            count(DISTINCT rc.author)     AS authors,
            count(*)                      AS evidence,
            count(*) FILTER (WHERE rc.is_maintainer) AS maintainer_evidence,
@@ -220,6 +224,35 @@ async def _record_evidence(engine: AsyncEngine, repo_id: str, rule_id: str, comm
     await with_retry(op, description="record evidence")
 
 
+async def insert_rule(
+    engine: AsyncEngine,
+    provider: EmbeddingProvider,
+    *,
+    repo_id: str,
+    candidate: Candidate,
+    origin: str = "extracted",
+) -> PersistResult:
+    """Write a rule without comparing it against memory first.
+
+    For callers that have already decided what the rule relates to. The
+    correction path has: it knows which rule the maintainer was correcting, and
+    letting nearest-neighbour distance re-decide that could retire a different
+    rule than the one they meant.
+    """
+    vector = encode((await provider.embed([candidate.statement]))[0])
+    return await _insert_new(engine, repo_id, candidate, vector, provider, origin)
+
+
+async def merge_evidence(engine: AsyncEngine, *, repo_id: str, rule_id: str, comment_ids) -> float:
+    """Attach further evidence to an existing rule and rescore it.
+
+    Public because a correction that agrees with a rule the answer already had
+    should strengthen that rule rather than create a near-duplicate of it.
+    """
+    await _record_evidence(engine, repo_id, rule_id, comment_ids)
+    return await _recompute(engine, repo_id, rule_id)
+
+
 async def _recompute(engine: AsyncEngine, repo_id: str, rule_id: str) -> float:
     """Recalculate counts and confidence from the evidence on record."""
 
@@ -236,6 +269,7 @@ async def _recompute(engine: AsyncEngine, repo_id: str, rule_id: str) -> float:
                 distinct_prs=row["prs"] or 0,
                 first_evidence_at=row["first_at"],
                 last_evidence_at=row["last_at"],
+                stated_directly=row["origin"] == "correction",
             )
             await conn.execute(
                 UPDATE_COUNTS,
@@ -263,6 +297,7 @@ async def persist_rule(
     judge=None,
     consider_distance: float = CONSIDER_DISTANCE,
     merge_distance: float = MERGE_DISTANCE,
+    origin: str = "extracted",
 ) -> PersistResult:
     """Insert, merge into an equivalent rule, or supersede one it contradicts.
 
@@ -334,7 +369,7 @@ async def persist_rule(
                         str(nearest["id"])[:8],
                         verdict.get("reason", "")[:80],
                     )
-                    result = await _insert_new(engine, repo_id, candidate, vector, provider)
+                    result = await _insert_new(engine, repo_id, candidate, vector, provider, origin)
                     await supersede(
                         engine,
                         repo_id=repo_id,
@@ -350,7 +385,7 @@ async def persist_rule(
                         statement_vector=vector,
                     )
 
-    result = await _insert_new(engine, repo_id, candidate, vector, provider)
+    result = await _insert_new(engine, repo_id, candidate, vector, provider, origin)
     return PersistResult(
         outcome="inserted",
         rule_id=result.rule_id,
@@ -365,6 +400,7 @@ async def _insert_new(
     candidate: Candidate,
     vector: str,
     provider: EmbeddingProvider,
+    origin: str = "extracted",
 ) -> PersistResult:
     """Write a genuinely new rule, with its evidence and derived confidence."""
     breakdown = score(
@@ -372,6 +408,7 @@ async def _insert_new(
         distinct_prs=candidate.distinct_prs,
         first_evidence_at=candidate.first_evidence_at,
         last_evidence_at=candidate.last_evidence_at,
+        stated_directly=origin == "correction",
     )
 
     async def insert() -> str:
@@ -393,6 +430,7 @@ async def _insert_new(
                             "embedding_model": getattr(provider, "model", None),
                             "first_evidence_at": candidate.first_evidence_at,
                             "last_evidence_at": candidate.last_evidence_at,
+                            "origin": origin,
                         },
                     )
                 ).scalar_one()

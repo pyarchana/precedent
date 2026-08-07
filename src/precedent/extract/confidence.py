@@ -45,6 +45,17 @@ WEIGHTS = {
     "recency": 0.15,
 }
 
+# A maintainer correcting a specific wrong answer is not weak evidence. It is
+# the strongest evidence this system can get: stated deliberately, in context,
+# by someone with authority over the answer.
+#
+# It also has none of the properties measured above, so measuring it produces a
+# number that is not merely imprecise but backwards. Corrections are therefore
+# floored rather than scored. The floor sits below 1.0 because a correction is
+# still one person on one occasion, and a convention restated by five
+# maintainers across four years should still be able to outrank it.
+STATED_DIRECTLY_FLOOR = 0.85
+
 
 @dataclass(slots=True)
 class ConfidenceBreakdown:
@@ -75,8 +86,13 @@ def score(
     first_evidence_at: datetime | None = None,
     last_evidence_at: datetime | None = None,
     now: datetime | None = None,
+    stated_directly: bool = False,
 ) -> ConfidenceBreakdown:
-    """Confidence in [0, 1] for a rule, from the shape of its evidence."""
+    """Confidence in [0, 1] for a rule, from the shape of its evidence.
+
+    `stated_directly` marks a rule a maintainer asserted rather than one
+    inferred from a pattern, and applies a floor instead of a score.
+    """
     now = now or datetime.now(UTC)
 
     # A single voice is not zero confidence, but it is close: the rule may be
@@ -102,6 +118,9 @@ def score(
         + WEIGHTS["persistence"] * persistence
         + WEIGHTS["recency"] * recency
     )
+
+    if stated_directly:
+        confidence = max(confidence, STATED_DIRECTLY_FLOOR)
 
     return ConfidenceBreakdown(
         confidence=round(min(1.0, max(0.0, confidence)), 4),

@@ -26,6 +26,79 @@ Target repository: [pandas-dev/pandas](https://github.com/pandas-dev/pandas).
 
 Every table is keyed on `repo_id`; the system is multi-tenant from the schema up.
 
+## Asking, and correcting
+
+Retrieval with citations is a search engine with good manners. What makes this a
+memory is that a maintainer can correct an answer once, and the next contributor
+to ask gets the corrected one.
+
+```
+$ python -m precedent.agent.ask "Where do I put the GitHub issue number in a test?"
+You should add the GitHub issue number as a comment at the top of each test in
+the format # GH<issue number> [PR #65052].
+
+to correct this answer: python -m precedent.agent.correct 59d1f3b0 1 "..."
+```
+
+```
+$ python -m precedent.agent.correct 59d1f3b0 1 \
+    "Not quite. The number goes next to the specific assertion that covers the
+     issue, not at the top of the test, and the format is # GH#12345." --as pyarchana
+
+retired: Add the GitHub issue number as a comment at the top of each test...
+reason: The existing rule requires the issue number at the top of each test,
+while the new rule specifies it must be next to specific assertions, making it
+impossible to follow both simultaneously.
+```
+
+```
+$ python -m precedent.agent.ask "Where do I put the GitHub issue number in a test?"
+Add the GitHub issue number as a comment next to the specific assertion or test
+case that covers the issue in the format # GH#<issue number>
+[correction by pyarchana, 2026-08-07].
+```
+
+Four things about that are deliberate.
+
+**The correction is aimed at the rule the answer actually used**, not at the
+rule nearest to the correction's wording. Every answer records the rule ids it
+was built from, so a correction arriving weeks later can still see them.
+Nearest-neighbour would occasionally retire a different rule than the maintainer
+meant, which is worse than doing nothing.
+
+**A model decides whether it is a contradiction.** Embeddings put opposites
+close together: "use single quotes" and "use double quotes" sit nearer to each
+other than two genuine duplicates do. An earlier version merged on distance
+alone, and feeding it a reversal made the reversal *further evidence for* the
+thing it reversed. A correction that strengthens the error it corrects is the
+one failure this system cannot have.
+
+**A correction that agrees with the cited rule becomes evidence for it**, not a
+second copy of it. That case means the rule was right and the answer misused it.
+
+**Nothing is deleted.** The retired rule keeps its evidence, its confidence and
+the reason it was replaced, because "we used to say X, then this happened" is
+what makes the memory explicable rather than merely current.
+
+Corrections are stored as `review_comments` of kind `maintainer_correction`, so
+they are embedded, retrieved and cited on the same path as anything said on a
+real pull request. They are never rendered as a PR citation, and every citation
+in an answer, PR or correction, is verified against what was actually retrieved
+before the answer is shown.
+
+### Scoring a correction
+
+Confidence is built from independent voices, distinct pull requests, persistence
+and recency. A correction has one author, one occasion and no history, so on
+those terms it scores near the floor, and the agent would present a maintainer's
+own words as "weakly evidenced" while treating a pattern inferred from three
+pull requests in 2016 as settled.
+
+Rules therefore record their `origin`, and a correction gets a floor of 0.85
+rather than a score. The floor sits below what a genuinely well-attested
+convention reaches, so a correction outranks the rule it replaced without
+outranking the whole corpus.
+
 ## Running the ingest
 
 The ingest stages raw GitHub GraphQL responses to disk before anything parses them,

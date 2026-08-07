@@ -44,6 +44,10 @@ of this project. Do not use it. An answer that is correct but unsupported is \
 a failure here, because the contributor cannot check it.
   - Cite the pull request for every claim, as [PR #12345]. Cite only numbers \
 that appear in the supplied material.
+  - Some material is a correction: a maintainer telling this system directly \
+that an earlier answer was wrong. Cite it using the exact bracketed label it \
+is given, and treat it as settling the point over anything older that \
+disagrees with it.
   - If the material does not answer the question, say so plainly and stop. Do \
 not offer a general answer instead, and do not pad the reply with adjacent \
 things the material does happen to cover. "The review history does not cover \
@@ -80,13 +84,14 @@ class Answer:
     missing: str = ""
     cited_prs: list[int] = field(default_factory=list)
     invented_prs: list[int] = field(default_factory=list)
+    invented_corrections: list[str] = field(default_factory=list)
     rule_ids: list[str] = field(default_factory=list)
     comment_ids: list[str] = field(default_factory=list)
 
     @property
     def is_trustworthy(self) -> bool:
         """False when the agent cited something it was not given."""
-        return not self.invented_prs
+        return not self.invented_prs and not self.invented_corrections
 
 
 NO_MEMORY = (
@@ -94,6 +99,23 @@ NO_MEMORY = (
     "from what maintainers have actually said in code review, and there is "
     "nothing relevant on record."
 )
+
+
+CORRECTION_KIND = "maintainer_correction"
+
+
+def citation_label(hit) -> str:
+    """The bracketed token the model is meant to copy for this piece of evidence.
+
+    A correction never happened on a pull request, and it is stored with pull
+    request number zero. Rendering it as "[PR #0]" would be a citation that
+    looks checkable and is not, which is the one thing this system must never
+    produce. It gets a label that says what it actually is, and that label is
+    verified afterwards exactly as pull request numbers are.
+    """
+    if hit.kind == CORRECTION_KIND:
+        return f"[correction by {hit.author or 'a maintainer'}, {hit.created_at.date()}]"
+    return f"[PR #{hit.pr_number}]"
 
 
 def render_material(recall: Recall, *, max_comment_chars: int = 400) -> str:
@@ -104,26 +126,33 @@ def render_material(recall: Recall, *, max_comment_chars: int = 400) -> str:
         blocks.append("Conventions observed in this project:")
         for i, rule in enumerate(recall.rules, 1):
             scope = f" (applies to {rule.scope_pattern})" if rule.scope_pattern else ""
+            # A rule a maintainer stated is not "observed", and saying so keeps
+            # the model from hedging on the one thing it should not hedge on.
+            corrected = " [established by maintainer correction]" if rule.is_correction else ""
             weak = " [weakly evidenced]" if rule.is_weak else ""
-            blocks.append(f"\n{i}. {rule.statement}{scope}{weak}")
+            blocks.append(f"\n{i}. {rule.statement}{scope}{corrected}{weak}")
             if rule.rationale:
                 blocks.append(f"   Why: {rule.rationale}")
             for c in rule.citations:
                 body = " ".join(c.body.split())[:max_comment_chars]
-                blocks.append(f"   [PR #{c.pr_number}] {c.author or 'unknown'}: {body}")
+                blocks.append(f"   {citation_label(c)} {c.author or 'unknown'}: {body}")
 
     if recall.comments:
         blocks.append("\nOther review comments that may be relevant:")
         for c in recall.comments:
             body = " ".join(c.body.split())[:max_comment_chars]
             where = f" on {c.file_path}" if c.file_path else ""
-            blocks.append(f"   [PR #{c.pr_number}] {c.author or 'unknown'}{where}: {body}")
+            blocks.append(f"   {citation_label(c)} {c.author or 'unknown'}{where}: {body}")
 
     return "\n".join(blocks)
 
 
 def extract_citations(text: str) -> list[int]:
     return sorted({int(n) for n in re.findall(r"\[PR #(\d+)\]", text)})
+
+
+def extract_correction_citations(text: str) -> list[str]:
+    return sorted(set(re.findall(r"\[correction by [^\]]+\]", text)))
 
 
 async def answer_question(chat, recall: Recall) -> Answer:
@@ -154,11 +183,26 @@ async def answer_question(chat, recall: Recall) -> Answer:
     text_out = (result.get("answer") or "").strip()
     answered = bool(result.get("answered")) and bool(text_out)
 
-    available = {c.pr_number for rule in recall.rules for c in rule.citations}
-    available |= {c.pr_number for c in recall.comments}
+    supplied = [c for rule in recall.rules for c in rule.citations] + list(recall.comments)
+    # Corrections are excluded from the pull request numbers on purpose. They
+    # all carry the zero sentinel, and admitting it here would let "[PR #0]"
+    # pass verification.
+    available = {c.pr_number for c in supplied if c.kind != CORRECTION_KIND}
+    available_corrections = {citation_label(c) for c in supplied if c.kind == CORRECTION_KIND}
 
     cited = extract_citations(text_out)
     invented = [pr for pr in cited if pr not in available]
+    invented_corrections = [
+        label
+        for label in extract_correction_citations(text_out)
+        if label not in available_corrections
+    ]
+    if invented_corrections:
+        log.error(
+            "answer cited corrections that were never retrieved: %s (question: %r)",
+            invented_corrections,
+            recall.question[:60],
+        )
     if invented:
         # Loud, because a fabricated citation is the exact failure this
         # system claims to prevent, and it is invisible to a reader who
@@ -177,6 +221,7 @@ async def answer_question(chat, recall: Recall) -> Answer:
         missing=result.get("missing", ""),
         cited_prs=cited,
         invented_prs=invented,
+        invented_corrections=invented_corrections,
         rule_ids=[r.id for r in recall.rules],
         comment_ids=[c.id for c in recall.comments],
     )
