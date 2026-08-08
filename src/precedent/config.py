@@ -33,6 +33,20 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
 
     openai_api_key: str = ""
+
+    # The demo is a public URL in front of a paid model, funded by one $5 top-up
+    # with no second one coming. These are the guards on that, and they are
+    # deliberately settings rather than constants so the ceiling can be lowered
+    # without a deploy.
+    #
+    # api_budget_usd is spend across the whole process, not per request: a
+    # per-request cap bounds nothing when anyone can send a thousand requests.
+    api_budget_usd: float = 1.00
+    api_rate_limit_per_minute: int = 10
+    # Corrections write to memory, so they are held to a tighter limit than
+    # questions and are the thing to disable first if the demo is abused.
+    api_corrections_enabled: bool = True
+    api_cors_origins: str = "*"
     # 1536 dimensions, matching the VECTOR columns in migration 0001. Changing
     # the model to one with a different width means rewriting those columns.
     embedding_model: str = "text-embedding-3-small"

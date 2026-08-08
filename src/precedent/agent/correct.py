@@ -20,6 +20,9 @@ From there:
      on its own months later.
   3. The statement is compared against the rules the answer actually used. The
      one it contradicts is superseded and points at the replacement.
+  4. The correction then sweeps its neighbourhood, retiring any other active
+     rule it also contradicts. See below: without this step a correction can
+     be true and still lose.
 
 ## Why it compares against the cited rules and not the nearest ones
 
@@ -50,6 +53,33 @@ it, or is about something else. All three happen:
   * **compatible** means the correction adds something rather than replacing
     anything, so it goes in as a new rule and nothing is retired.
 
+## Why one supersession is not enough
+
+The first correction this system took retired exactly the rule it was aimed at,
+and left memory holding the correction alongside two near duplicates of the
+thing that had just been corrected, both at higher confidence than the
+correction itself. Deduplication had judged those "compatible" rather than
+"same" when they were written, so they had survived as separate rules.
+
+Nothing was technically wrong. The correction was recorded, the cited rule was
+retired, and the next answer happened to come out right. But memory held a
+maintainer's correction and the claim they had corrected at the same time, and
+which one an answer used was down to retrieval order. That is not a memory that
+learned anything.
+
+So a correction sweeps: after superseding its target it compares itself against
+the other active rules nearby and retires the ones it also contradicts.
+
+The sweep is bounded tightly, and the first run showed why. Reaching out to the
+usual `CONSIDER_DISTANCE` it retired the two intended duplicates and also
+"always include the GitHub issue number in the pull request description", which
+does not conflict with a rule about test comments at all. That pair is the
+worked example of "compatible" in the judge's own prompt and the judge got it
+backwards anyway. So the sweep stops at `MERGE_DISTANCE`, where the measured
+duplicates were (0.445, 0.650, 0.708) and the false positive was not (0.763).
+A sweep retires several rules off single verdicts with nobody reviewing the
+result, so it needs a gate that does not depend on the judge being right.
+
 Usage:
 
     python -m precedent.agent.correct <session-id> <turn> "no, ..." --as jbrockmendel
@@ -64,7 +94,7 @@ import asyncio
 import logging
 import sys
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from sqlalchemy import bindparam, text
@@ -79,6 +109,8 @@ from precedent.embed.vector import encode
 from precedent.extract import contradiction
 from precedent.extract.llm import ChatClient
 from precedent.extract.persist import (
+    MERGE_DISTANCE,
+    NEIGHBOURS_IN_BAND,
     Candidate,
     insert_rule,
     merge_evidence,
@@ -178,6 +210,9 @@ class CorrectionResult:
     corrected_rule_id: str | None = None
     corrected_statement: str | None = None
     reason: str = ""
+    # Other active rules the correction also contradicted. Usually near
+    # duplicates of the corrected one that deduplication never merged.
+    also_retired: list[str] = field(default_factory=list)
 
     @property
     def changed_memory(self) -> bool:
@@ -305,6 +340,112 @@ async def _find_target(engine, chat, *, repo_id: str, turn: Turn, statement: str
     return None, None, ""
 
 
+async def sweep_contradicted(
+    engine: AsyncEngine,
+    chat,
+    *,
+    repo_id: str,
+    statement: str,
+    statement_vector: str,
+    keep_rule_id: str,
+    maintainer_login: str,
+    already_retired: set[str] | None = None,
+    max_comparisons: int = 8,
+    max_distance: float = MERGE_DISTANCE,
+) -> list[tuple[str, str, str]]:
+    """Retire every other active rule the correction contradicts.
+
+    Superseding only the rule the answer cited is not enough, and the first
+    correction this system took proved it. A maintainer corrected "put the issue
+    number at the top of the test"; that rule was retired, and two near
+    duplicates saying the same superseded thing stayed active at higher
+    confidence than the correction, because deduplication had judged them
+    "compatible" rather than "same" when they were written.
+
+    The result is a memory that holds a maintainer's correction and the thing
+    they corrected at the same time, and answers from whichever the retrieval
+    happens to rank first. So a correction sweeps its neighbourhood.
+
+    Bounded two ways, and both bounds were earned.
+
+    `max_comparisons` bounds cost: each comparison is a model call, and a dense
+    cluster of similar rules would otherwise run up more than the correction is
+    worth.
+
+    `max_distance` bounds damage, and defaults to `MERGE_DISTANCE` rather than
+    the wider `CONSIDER_DISTANCE` the ordinary write path uses. The first run of
+    this sweep went out to 1.10 and retired three rules, of which two were the
+    intended near duplicates and the third was "always include the GitHub issue
+    number in the pull request description", which does not contradict a rule
+    about where to put a comment in a test at all. Both can be followed. That
+    exact pair is the worked example of "compatible" in the judge's own prompt,
+    and the judge still called it a contradiction.
+
+    Measured against the correction, the genuine duplicates sat at 0.445, 0.650
+    and 0.708, and the false positive at 0.763. So the distance gate is the one
+    that has to hold here, because the judge demonstrably does not. The margin
+    is thin, which is the reason for a gate at all: a sweep supersedes several
+    rules off single verdicts, so one bad verdict destroys correct guidance,
+    and unlike the targeted path there is no maintainer looking at the result.
+    """
+    retired: list[tuple[str, str, str]] = []
+    skip = set(already_retired or set())
+
+    async with engine.connect() as conn:
+        neighbours = (
+            (
+                await conn.execute(
+                    NEIGHBOURS_IN_BAND,
+                    {
+                        "repo_id": repo_id,
+                        "query": statement_vector,
+                        "lo": 0.0,
+                        "hi": max_distance,
+                        "exclude_id": keep_rule_id,
+                    },
+                )
+            )
+            .mappings()
+            .all()
+        )
+
+    for neighbour in neighbours[:max_comparisons]:
+        rule_id = str(neighbour["id"])
+        if rule_id in skip:
+            continue
+
+        verdict = await chat.complete_json(
+            contradiction.build_messages(
+                old_statement=neighbour["statement"],
+                new_statement=statement,
+                old_date=(
+                    neighbour["last_evidence_at"].date().isoformat()
+                    if neighbour["last_evidence_at"]
+                    else "unknown"
+                ),
+                new_date=datetime.now(UTC).date().isoformat(),
+            )
+        )
+        if verdict.get("relation") != "contradicts":
+            continue
+
+        reason = verdict.get("reason", "")
+        await supersede(
+            engine,
+            repo_id=repo_id,
+            old_rule_id=rule_id,
+            replacement_rule_id=keep_rule_id,
+            reason=f"contradicted by {maintainer_login}'s correction: {reason}"
+            if reason
+            else f"contradicted by {maintainer_login}'s correction",
+        )
+        retired.append((rule_id, neighbour["statement"], reason))
+
+    if retired:
+        log.info("correction swept %d further contradicted rules", len(retired))
+    return retired
+
+
 async def apply_correction(
     engine: AsyncEngine,
     provider: EmbeddingProvider,
@@ -358,6 +499,8 @@ async def apply_correction(
         today=now.date().isoformat(),
     )
 
+    statement_vector: str | None = None
+
     if target is not None and relation == "same":
         # The rule was right and the answer misused it. Strengthen the rule.
         rule_id = str(target["id"])
@@ -378,6 +521,7 @@ async def apply_correction(
             origin="correction",
         )
         rule_id = result.rule_id
+        statement_vector = result.statement_vector
         corrected_id = str(target["id"])
         await supersede(
             engine,
@@ -405,8 +549,24 @@ async def apply_correction(
             origin="correction",
         )
         rule_id = result.rule_id
+        statement_vector = result.statement_vector
         outcome = result.outcome
         corrected_id = result.superseded_rule_id
+
+    # A merge means memory already said this, so there is nothing to sweep: the
+    # surviving rule is the one that was already there.
+    swept: list[tuple[str, str, str]] = []
+    if statement_vector and outcome != "merged":
+        swept = await sweep_contradicted(
+            engine,
+            chat,
+            repo_id=repo_id,
+            statement=statement,
+            statement_vector=statement_vector,
+            keep_rule_id=rule_id,
+            maintainer_login=maintainer_login,
+            already_retired={corrected_id} if corrected_id else set(),
+        )
 
     async def record() -> str:
         async with engine.begin() as conn:
@@ -438,6 +598,7 @@ async def apply_correction(
         corrected_rule_id=corrected_id,
         corrected_statement=target["statement"] if target is not None else None,
         reason=reason,
+        also_retired=[statement for _, statement, _ in swept],
     )
 
 
@@ -490,6 +651,9 @@ async def main_async(args: argparse.Namespace) -> int:
         print(f"  {result.corrected_statement}")
     else:
         print(f"added as a new rule {result.rule_id}; nothing was retired")
+
+    for statement in result.also_retired:
+        print(f"also retired: {statement}")
 
     print(f"\n[correction {result.correction_id} | ${chat.spent:.4f}]")
     return 0

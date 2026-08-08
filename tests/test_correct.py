@@ -24,7 +24,11 @@ from precedent.agent.answer import (
     extract_correction_citations,
     render_material,
 )
-from precedent.agent.correct import _find_target, _statement_from_correction
+from precedent.agent.correct import (
+    _find_target,
+    _statement_from_correction,
+    sweep_contradicted,
+)
 from precedent.agent.retrieve import Recall, RetrievedRule
 from precedent.agent.session import Turn, _uuid_array
 from precedent.extract.confidence import STATED_DIRECTLY_FLOOR, score
@@ -342,6 +346,146 @@ class TestFindTarget:
         )
         assert rule is None
         assert not chat.calls
+
+
+class SweepEngine:
+    """Serves neighbours to `sweep_contradicted` and records supersessions."""
+
+    def __init__(self, rows):
+        self.rows = rows
+        self.superseded: list[str] = []
+
+    def connect(self):
+        return _Ctx(self.rows)
+
+    def begin(self):
+        return _Ctx(self.rows, record=self.superseded)
+
+
+class _Ctx:
+    def __init__(self, rows, record=None):
+        self.rows = rows
+        self.record = record
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def execute(self, statement, params=None):
+        if self.record is not None and params and "rule_id" in params:
+            self.record.append(params["rule_id"])
+
+        rows = self.rows
+
+        class Result:
+            def mappings(self_r):
+                return self_r
+
+            def all(self_r):
+                return rows
+
+        return Result()
+
+
+def _neighbour(rule_id: str, statement: str, distance: float = 0.5):
+    return {
+        "id": rule_id,
+        "statement": statement,
+        "last_evidence_at": NOW - timedelta(days=300),
+        "distance": distance,
+    }
+
+
+class TestSweep:
+    """A correction that retires only its target can still lose.
+
+    The first real correction did exactly that: the cited rule was retired and
+    two near duplicates of it stayed active at higher confidence, so memory
+    held the correction and the corrected claim at once.
+    """
+
+    @pytest.mark.asyncio
+    async def test_near_duplicates_of_the_corrected_rule_are_retired(self):
+        engine = SweepEngine(
+            [
+                _neighbour("r2", "Put the issue number at the top of each test."),
+                _neighbour("r3", "Reference the issue number at the start of the test function."),
+            ]
+        )
+        chat = FakeChat(
+            {"relation": "contradicts", "reason": "different location"},
+            {"relation": "contradicts", "reason": "different location"},
+        )
+
+        retired = await sweep_contradicted(
+            engine,
+            chat,
+            repo_id="repo",
+            statement="Put the issue number next to the assertion.",
+            statement_vector="[0]",
+            keep_rule_id="r1",
+            maintainer_login="maint",
+        )
+        assert [r[0] for r in retired] == ["r2", "r3"]
+        assert engine.superseded == ["r2", "r3"]
+
+    @pytest.mark.asyncio
+    async def test_a_compatible_neighbour_survives(self):
+        # Being about the same subject is not being in conflict. Retiring these
+        # would make a correction destroy unrelated guidance.
+        engine = SweepEngine([_neighbour("r2", "Put the issue number in the PR description.")])
+        chat = FakeChat({"relation": "compatible", "reason": "different place entirely"})
+
+        retired = await sweep_contradicted(
+            engine,
+            chat,
+            repo_id="repo",
+            statement="Put it next to the assertion.",
+            statement_vector="[0]",
+            keep_rule_id="r1",
+            maintainer_login="maint",
+        )
+        assert retired == []
+        assert engine.superseded == []
+
+    @pytest.mark.asyncio
+    async def test_the_rule_already_retired_is_not_visited_twice(self):
+        engine = SweepEngine([_neighbour("r2", "old rule")])
+        chat = FakeChat()  # no comparison should be made
+
+        retired = await sweep_contradicted(
+            engine,
+            chat,
+            repo_id="repo",
+            statement="s",
+            statement_vector="[0]",
+            keep_rule_id="r1",
+            maintainer_login="maint",
+            already_retired={"r2"},
+        )
+        assert retired == []
+        assert not chat.calls
+
+    @pytest.mark.asyncio
+    async def test_comparisons_are_bounded(self):
+        # Each comparison is a paid call, so a dense cluster of similar rules
+        # must not be able to run the cost up without limit.
+        engine = SweepEngine([_neighbour(f"r{i}", f"rule {i}") for i in range(2, 20)])
+        chat = FakeChat(*([{"relation": "compatible", "reason": ""}] * 3))
+
+        await sweep_contradicted(
+            engine,
+            chat,
+            repo_id="repo",
+            statement="s",
+            statement_vector="[0]",
+            keep_rule_id="r1",
+            maintainer_login="maint",
+            max_comparisons=3,
+        )
+        assert len(chat.calls) == 3
 
 
 class TestUuidArray:
