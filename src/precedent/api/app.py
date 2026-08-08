@@ -34,14 +34,16 @@ import time
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from precedent.agent.answer import answer_question, citation_label
-from precedent.agent.correct import apply_correction
+from precedent.agent.correct import UnusableCorrection, apply_correction
 from precedent.agent.retrieve import recall
 from precedent.agent.session import open_session, record_turn
 from precedent.config import get_settings
@@ -270,6 +272,10 @@ class CorrectResponse(BaseModel):
     rule_id: str
     corrected_rule_id: str | None
     corrected_statement: str | None
+    # Near duplicates of the corrected rule that the sweep also retired. Shown
+    # in the demo because "one correction retired three rules" is the part that
+    # demonstrates memory changing rather than merely being appended to.
+    also_retired: list[str]
     reason: str
     changed_memory: bool
     spent_usd: float
@@ -293,6 +299,10 @@ async def correct(body: CorrectRequest, request: Request) -> CorrectResponse:
             maintainer_login=body.maintainer,
             correction=body.correction,
         )
+    except UnusableCorrection as exc:
+        # 422 rather than 400: the request was well formed, the content was not
+        # actionable. Nothing was written, and the message says what is missing.
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except BudgetExhausted as exc:
@@ -304,6 +314,7 @@ async def correct(body: CorrectRequest, request: Request) -> CorrectResponse:
         rule_id=result.rule_id,
         corrected_rule_id=result.corrected_rule_id,
         corrected_statement=result.corrected_statement,
+        also_retired=result.also_retired,
         reason=result.reason,
         changed_memory=result.changed_memory,
         spent_usd=round(deps.chat.spent, 4),
@@ -371,3 +382,11 @@ async def rules(limit: int = 20) -> dict:
             for r in retired
         ],
     }
+
+
+# Mounted last so it cannot shadow an endpoint. A single self-contained page
+# with no build step: it deploys with the application, which matters when the
+# target is one Lambda rather than a bucket and a CDN.
+STATIC_DIR = Path(__file__).parent / "static"
+if STATIC_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="ui")

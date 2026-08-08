@@ -151,8 +151,29 @@ def extract_citations(text: str) -> list[int]:
     return sorted({int(n) for n in re.findall(r"\[PR #(\d+)\]", text)})
 
 
+# Matches the label with or without its trailing date. Verification is on the
+# author alone, deliberately.
+#
+# The label is rendered with a date because a reader wants to know when the
+# project changed its mind. Models routinely drop it, writing "[correction by
+# jbrockmendel]" for a label rendered "[correction by jbrockmendel,
+# 2026-08-08]". Requiring the whole string to match meant a correctly cited
+# answer was reported as having fabricated its citation, which is far worse
+# than a missing date: it discredits the one check this system offers, and it
+# fires precisely on the answers that used a correction properly.
+#
+# The author is the part that carries the claim, so it is the part verified.
+# Citing a maintainer who did not correct anything is still caught.
+_CORRECTION_CITATION = re.compile(r"\[correction by ([^\],\]]+)(?:,[^\]]*)?\]")
+
+
 def extract_correction_citations(text: str) -> list[str]:
-    return sorted(set(re.findall(r"\[correction by [^\]]+\]", text)))
+    """Authors credited with a correction in the answer text."""
+    return sorted({who.strip() for who in _CORRECTION_CITATION.findall(text)})
+
+
+def correction_author(hit) -> str:
+    return (hit.author or "a maintainer").strip()
 
 
 async def answer_question(chat, recall: Recall) -> Answer:
@@ -188,7 +209,7 @@ async def answer_question(chat, recall: Recall) -> Answer:
     # all carry the zero sentinel, and admitting it here would let "[PR #0]"
     # pass verification.
     available = {c.pr_number for c in supplied if c.kind != CORRECTION_KIND}
-    available_corrections = {citation_label(c) for c in supplied if c.kind == CORRECTION_KIND}
+    available_corrections = {correction_author(c) for c in supplied if c.kind == CORRECTION_KIND}
 
     cited = extract_citations(text_out)
     invented = [pr for pr in cited if pr not in available]

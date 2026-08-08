@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Precedent</title>
+<style>
+:root {
+  --bg: #161826;
+  --panel: #1c1f31;
+  --panel-2: #21243a;
+  --accent: #9184d9;
+  --accent-300: #d2cefd;
+  --accent-900: #2b2741;
+  --n-100: #f3f5fe;
+  --n-200: #e4e7f5;
+  --n-300: #cfd3e5;
+  --n-400: #b2b6ca;
+  --n-500: #9397ab;
+  --n-600: #75798c;
+  --n-800: #3f424d;
+  --divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+  --ok: #7fd1a3;
+  --warn: #e0b062;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--n-200);
+  font: 15px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* A receding grid floor, drawn in CSS rather than pulled from a library so the
+   page stays a single self-contained file with nothing to fetch.
+
+   Two layers: a glow that lifts the top of the page away from flat black, and
+   the grid itself, laid flat and tipped back under perspective so the lines
+   converge. The mask fades both ends, which is what stops it reading as a
+   texture pasted over the bottom of the screen. */
+.bg-glow, .bg-grid { position: fixed; pointer-events: none; z-index: -1; }
+.bg-glow {
+  inset: 0;
+  background: radial-gradient(ellipse 90% 55% at 50% -10%, #232746 0%, transparent 70%);
+}
+/* The angle was tuned by measuring, not by eye. At perspective(300px) and 74
+   degrees the whole thing tipped to 52 pixels tall with its top edge below the
+   fold, which renders as nothing at all. These numbers put roughly a third of
+   the viewport under grid while keeping the lines converging. */
+.bg-grid {
+  left: -60%; right: -60%; bottom: 0; height: 100vh;
+  background-image:
+    repeating-linear-gradient(to right, rgba(145,132,217,.30) 0 1px, transparent 1px 84px),
+    repeating-linear-gradient(to bottom, rgba(145,132,217,.30) 0 1px, transparent 1px 84px);
+  transform: perspective(900px) rotateX(58deg);
+  transform-origin: 50% 100%;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.45) 42%, #000 74%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.45) 42%, #000 74%, transparent 100%);
+  animation: drift 26s linear infinite;
+}
+/* One full cell, so the loop is seamless. */
+@keyframes drift { to { background-position: 0 84px, 0 84px; } }
+
+/* Motion here is decoration and nothing depends on it. */
+@media (prefers-reduced-motion: reduce) {
+  .bg-grid { animation: none; }
+  .dots::after { animation: none; content: '...'; }
+}
+header {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 14px 22px; border-bottom: 1px solid var(--divider);
+  background: rgba(22, 24, 38, .72); backdrop-filter: blur(8px);
+}
+.brand { font-weight: 600; color: var(--n-100); letter-spacing: -0.01em; }
+.brand span { color: var(--n-500); font-weight: 400; margin-left: 10px; font-size: 13px; }
+.spacer { flex: 1; }
+.roles { display: flex; border: 1px solid var(--n-800); border-radius: 8px; overflow: hidden; }
+.roles button {
+  background: transparent; border: 0; color: var(--n-400);
+  padding: 6px 14px; font-size: 13px; cursor: pointer;
+}
+.roles button[aria-pressed="true"] { background: var(--accent-900); color: var(--accent-300); }
+.meta { font-size: 12px; color: var(--n-600); font-family: var(--mono); }
+
+main { display: grid; grid-template-columns: minmax(0, 1fr) 400px; height: calc(100% - 57px); }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; height: auto; } }
+
+.chat { display: flex; flex-direction: column; min-height: 0; }
+.stream { flex: 1; overflow-y: auto; padding: 22px; display: flex; flex-direction: column; gap: 16px; }
+
+.empty { margin: auto; text-align: center; max-width: 460px; color: var(--n-500); }
+.empty h1 { color: var(--n-100); font-size: 19px; margin: 0 0 10px; font-weight: 600; }
+.empty p { margin: 0 0 20px; font-size: 14px; }
+.suggest {
+  background: rgba(28, 31, 49, .78); backdrop-filter: blur(6px); border: 1px solid var(--n-800); color: var(--n-200);
+  border-radius: 10px; padding: 11px 15px; cursor: pointer; font-size: 14px; text-align: left;
+}
+.suggest:hover { border-color: var(--accent); }
+
+.msg { max-width: 78%; padding: 11px 15px; border-radius: 12px; }
+.msg.user { align-self: flex-end; background: var(--accent-900); color: var(--n-100); }
+/* Translucent so the grid reads through the conversation rather than being
+   walled off behind it. */
+.msg.agent {
+  align-self: flex-start; background: rgba(28, 31, 49, .78);
+  border: 1px solid var(--n-800); backdrop-filter: blur(6px);
+}
+.msg.system {
+  align-self: stretch; max-width: 100%; background: transparent;
+  border: 1px dashed var(--n-800); color: var(--n-400); font-size: 13px;
+}
+.msg.error { border-color: #7a3b3b; color: #f0b4b4; }
+
+cite {
+  font-family: var(--mono); font-size: 11.5px; font-style: normal;
+  border: 1px solid var(--n-600); border-radius: 4px; padding: 1px 6px;
+  margin: 0 2px; cursor: pointer; white-space: nowrap; color: var(--n-200);
+}
+cite:hover, cite.on { border-color: var(--accent); background: rgba(145,132,217,.18); color: var(--accent-300); }
+
+.row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+.btn {
+  background: transparent; border: 1px solid var(--n-800); color: var(--n-300);
+  border-radius: 7px; padding: 5px 12px; font-size: 12.5px; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent-300); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #14121f; font-weight: 600; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.editor { align-self: stretch; max-width: 100%; background: var(--panel-2); border: 1px solid var(--accent); border-radius: 12px; padding: 14px; }
+.editor label { display: block; font-size: 12px; color: var(--n-500); margin-bottom: 8px; }
+.reject {
+  margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 13px;
+  background: rgba(122, 59, 59, .18); border: 1px solid #7a3b3b; color: #f0b4b4;
+}
+.reject .eg { margin-top: 6px; color: var(--n-400); font-size: 12.5px; }
+.reject em { color: var(--n-300); font-style: normal; }
+textarea, input[type=text] {
+  width: 100%; background: var(--bg); color: var(--n-100);
+  border: 1px solid var(--n-800); border-radius: 8px; padding: 10px 12px;
+  font: inherit; resize: vertical;
+}
+textarea:focus, input:focus { outline: none; border-color: var(--accent); }
+
+.composer {
+  border-top: 1px solid var(--divider); padding: 14px 22px;
+  background: rgba(22, 24, 38, .72); backdrop-filter: blur(8px);
+}
+.composer form { display: flex; gap: 10px; }
+.hint { font-size: 12px; color: var(--n-600); margin-top: 8px; min-height: 16px; }
+
+aside {
+  border-left: 1px solid var(--divider); overflow-y: auto; padding: 18px;
+  background: rgba(20, 22, 35, .55); backdrop-filter: blur(8px);
+}
+@media (max-width: 900px) { aside { border-left: 0; border-top: 1px solid var(--divider); } }
+aside h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--n-500); margin: 0 0 4px; }
+aside .sub { font-size: 12px; color: var(--n-600); margin-bottom: 14px; }
+
+.card { background: rgba(28, 31, 49, .78); backdrop-filter: blur(6px); border: 1px solid var(--n-800); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+.card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.card.dead { opacity: .55; }
+.card.dead .stmt { text-decoration: line-through; text-decoration-color: var(--n-500); }
+.stmt { font-size: 13.5px; color: var(--n-200); }
+.facts { display: flex; gap: 12px; margin-top: 9px; font-family: var(--mono); font-size: 11px; color: var(--n-600); flex-wrap: wrap; }
+.tag { border-radius: 4px; padding: 1px 6px; font-size: 10.5px; font-family: var(--mono); }
+.tag.corr { background: var(--accent-900); color: var(--accent-300); }
+.tag.new { background: #1f3a2c; color: var(--ok); }
+.replaced { margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--n-800); font-size: 12px; color: var(--n-500); }
+.replaced b { color: var(--n-300); font-weight: 500; }
+
+.dots::after { content: ''; animation: d 1.2s steps(4, end) infinite; }
+@keyframes d { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+</style>
+</head>
+<body>
+
+<div class="bg-glow" aria-hidden="true"></div>
+<div class="bg-grid" aria-hidden="true"></div>
+
+<header>
+  <div class="brand">Precedent <span>pandas-dev/pandas review memory</span></div>
+  <div class="spacer"></div>
+  <div class="roles" role="group" aria-label="Role">
+    <button id="r-con" aria-pressed="true">Contributor</button>
+    <button id="r-mnt" aria-pressed="false">Maintainer</button>
+  </div>
+  <div class="meta" id="meta">&nbsp;</div>
+  <button class="btn" id="reset">Reset</button>
+</header>
+
+<main>
+  <section class="chat">
+    <div class="stream" id="stream">
+      <div class="empty" id="empty">
+        <h1>Ask what this project already decided.</h1>
+        <p>Answers come only from real review comments on pandas pull requests, each one cited. If the review history does not cover your question, it says so.</p>
+        <button class="suggest" id="suggest">Where do I put the GitHub issue number in a test?</button>
+      </div>
+    </div>
+    <div class="composer">
+      <form id="form">
+        <input type="text" id="ask" placeholder="Ask about pandas contribution conventions..." autocomplete="off">
+        <button class="btn primary" id="send" type="submit">Ask</button>
+      </form>
+      <div class="hint" id="hint"></div>
+    </div>
+  </section>
+
+  <aside>
+    <h2>Semantic memory</h2>
+    <div class="sub" id="mem-sub">Conventions distilled from review history.</div>
+    <div id="memory"></div>
+  </aside>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const state = { role: 'contributor', session: null, turn: null, busy: false, lastQuestion: null, correcting: false };
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+));
+
+function setRole(role) {
+  state.role = role;
+  $('r-con').setAttribute('aria-pressed', role === 'contributor');
+  $('r-mnt').setAttribute('aria-pressed', role === 'maintainer');
+  render();
+}
+
+function hint(text) { $('hint').textContent = text || ''; }
+
+function bubble(cls, html) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + cls;
+  el.innerHTML = html;
+  $('stream').appendChild(el);
+  $('stream').scrollTop = $('stream').scrollHeight;
+  return el;
+}
+
+// Citations are rendered as clickable chips that highlight the rule they came
+// from. The point of the panel is that an answer is traceable to a rule, and a
+// rule to the comments it was learned from, without leaving the page.
+function linkify(text) {
+  return esc(text)
+    .replace(/\[PR #(\d+)\]/g,
+      (_, n) => `<cite data-pr="${n}" title="Open pull request ${n}">#${n}</cite>`)
+    .replace(/\[correction by ([^\],]+), ([^\]]+)\]/g,
+      (_, who, when) => `<cite data-corr="1" title="Correction recorded ${esc(when)}">correction by ${esc(who)}</cite>`);
+}
+
+let rules = [];
+
+function render() {
+  const box = $('memory');
+  if (!rules.length) {
+    box.innerHTML = '<div class="sub">Ask something to see what memory holds.</div>';
+  } else {
+    box.innerHTML = rules.map(r => `
+      <div class="card ${r.dead ? 'dead' : ''}" data-rule="${esc(r.id)}">
+        <div class="stmt">${esc(r.statement)}</div>
+        <div class="facts">
+          <span>${Math.round(r.confidence * 100)}% confidence</span>
+          <span>${r.evidence_count} comment${r.evidence_count === 1 ? '' : 's'}</span>
+          ${r.is_correction ? '<span class="tag corr">from correction</span>' : ''}
+          ${r.fresh ? '<span class="tag new">updated</span>' : ''}
+        </div>
+        ${r.replaced ? `<div class="replaced">Replaced: <b>${esc(r.replaced)}</b></div>` : ''}
+      </div>`).join('');
+  }
+
+  const canCorrect = state.role === 'maintainer' && state.turn !== null && !state.correcting;
+  document.querySelectorAll('[data-correct]').forEach(b => { b.style.display = canCorrect ? '' : 'none'; });
+
+  if (state.busy) hint('');
+  else if (state.correcting) hint('Finish or cancel the correction to continue.');
+  else if (state.turn !== null && state.role !== 'maintainer') hint('Switch to Maintainer to correct this answer.');
+  else if (state.turn !== null) hint('Use Correct to tell memory what the project actually does.');
+  else hint('');
+}
+
+async function api(path, body) {
+  const res = await fetch(path, body ? {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+  } : undefined);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.detail || `${res.status} ${res.statusText}`);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+// Rules straight from memory rather than from an answer, so the panel can be
+// brought up to date without spending a model call to do it.
+async function refreshMemory() {
+  try {
+    const d = await api('/rules?limit=8');
+    rules = (d.active || []).map(r => ({
+      ...r,
+      is_correction: r.origin === 'correction',
+      dead: false,
+      fresh: r.origin === 'correction',
+    }));
+    // The rules a correction just retired, shown struck through. "We used to
+    // say this" is the part that makes memory look like it learned something
+    // rather than merely gained a row.
+    for (const r of (d.superseded || []).slice(0, 3)) {
+      rules.push({
+        id: r.id, statement: r.statement, confidence: 0, evidence_count: 0,
+        is_correction: false, dead: true, fresh: false, replaced: r.replaced_by,
+      });
+    }
+  } catch (err) {
+    console.warn('could not refresh memory', err);
+  }
+  render();
+}
+
+async function ask(question) {
+  if (state.busy) return;
+  state.busy = true; state.lastQuestion = question;
+  $('empty')?.remove();
+  bubble('user', esc(question));
+  const thinking = bubble('agent', '<span class="dots">Searching review history</span>');
+
+  try {
+    const d = await api('/ask', { question, session_id: state.session, contributor: 'demo' });
+    state.session = d.session_id; state.turn = d.turn;
+
+    thinking.innerHTML = linkify(d.answer)
+      + (d.trustworthy ? '' : '<div class="row" style="color:#f0b4b4">Citation check failed: this answer referenced material it was not given.</div>')
+      + `<div class="row"><button class="btn" data-correct="1">Correct this</button></div>`;
+    thinking.querySelector('[data-correct]').onclick = () => openEditor(thinking);
+
+    rules = d.rules.map(r => ({ ...r, dead: false, fresh: false }));
+    $('meta').textContent = `$${d.spent_usd.toFixed(4)} spent`;
+  } catch (err) {
+    thinking.className = 'msg agent error';
+    thinking.textContent = err.message;
+  } finally {
+    state.busy = false; render();
+  }
+}
+
+function openEditor(afterEl) {
+  state.correcting = true; render();
+  const ed = document.createElement('div');
+  ed.className = 'editor';
+  ed.innerHTML = `
+    <label>What does the project actually do? This is recorded against your name and changes what later answers say.</label>
+    <textarea id="corr" rows="3" placeholder="The whatsnew note goes in the file for the next release, not the current one."></textarea>
+    <div class="row">
+      <input type="text" id="who" placeholder="your GitHub login" style="max-width:200px">
+      <button class="btn primary" id="save">Save correction</button>
+      <button class="btn" id="cancel">Cancel</button>
+    </div>
+    <div class="reject" id="reject" hidden></div>`;
+  afterEl.after(ed);
+  $('corr').focus();
+  // Clear a previous refusal as soon as the text changes, so it reads as a
+  // response to what was submitted rather than a standing complaint.
+  $('corr').oninput = () => { $('reject').hidden = true; };
+  $('cancel').onclick = () => { ed.remove(); state.correcting = false; render(); };
+  $('save').onclick = () => submitCorrection(ed);
+}
+
+async function submitCorrection(ed) {
+  const correction = $('corr').value.trim();
+  const maintainer = $('who').value.trim();
+  if (correction.length < 5 || !maintainer) {
+    hint('A correction needs text and the login of whoever is making it.');
+    return;
+  }
+  $('save').disabled = true;
+  const note = bubble('system', '<span class="dots">Updating memory</span>');
+
+  try {
+    const d = await api('/correct', {
+      session_id: state.session, turn: state.turn, correction, maintainer
+    });
+
+    // Driven by the outcome, not by whether a statement came back. A merge
+    // returns the statement it merged into, and reading that as a retirement
+    // told the maintainer their correction had retired the rule it actually
+    // reinforced.
+    let detail;
+    if (d.outcome === 'merged') {
+      detail = `<div class="replaced">Memory already held this, so it was recorded as further evidence for: <b>${esc(d.corrected_statement || '')}</b></div>`;
+    } else {
+      const retired = [d.corrected_statement, ...(d.also_retired || [])].filter(Boolean);
+      detail = retired.length
+        ? `<div class="replaced">Retired ${retired.length} rule${retired.length === 1 ? '' : 's'}: ${retired.map(s => esc(s)).join(' &middot; ')}</div>`
+        : '<div class="replaced">Nothing was retired; this adds to what memory held.</div>';
+    }
+
+    note.innerHTML =
+      `<b>${esc(maintainer)}</b> corrected this. Recorded as: <b>${esc(d.statement)}</b>`
+      + detail
+      + `<div class="row"><button class="btn primary" id="reask">Ask the same question again</button></div>`;
+    $('reask').onclick = () => { $('reask').disabled = true; ask(state.lastQuestion); };
+
+    ed.remove();
+    state.correcting = false;
+    state.turn = null;
+    // The panel is the whole point of the correction, so it must not keep
+    // showing the pre-correction state until someone thinks to ask again.
+    await refreshMemory();
+  } catch (err) {
+    // A refused correction is not a failure, it is the system declining to
+    // record something it cannot act on. It belongs next to the text being
+    // edited, replacing any previous refusal, rather than stacking a fresh
+    // error into the conversation on every attempt.
+    note.remove();
+    $('save').disabled = false;
+    if (err.status === 422) {
+      const box = $('reject');
+      box.hidden = false;
+      box.innerHTML = `${esc(err.message)}
+        <div class="eg">For example: <em>"The number goes next to the assertion it covers, not at the top of the test."</em></div>`;
+      $('corr').focus();
+    } else {
+      bubble('system', esc(err.message)).classList.add('error');
+    }
+  } finally {
+    render();
+  }
+}
+
+$('form').onsubmit = (e) => {
+  e.preventDefault();
+  const q = $('ask').value.trim();
+  if (q) { $('ask').value = ''; ask(q); }
+};
+$('suggest').onclick = () => ask($('suggest').textContent.trim());
+$('r-con').onclick = () => setRole('contributor');
+$('r-mnt').onclick = () => setRole('maintainer');
+$('reset').onclick = () => location.reload();
+
+document.addEventListener('click', (e) => {
+  const c = e.target.closest('cite');
+  if (!c) return;
+  if (c.dataset.pr) {
+    window.open(`https://github.com/pandas-dev/pandas/pull/${c.dataset.pr}`, '_blank', 'noopener');
+  }
+});
+
+render();
+</script>
+</body>
+</html>

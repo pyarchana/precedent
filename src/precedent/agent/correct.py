@@ -53,6 +53,23 @@ it, or is about something else. All three happen:
   * **compatible** means the correction adds something rather than replacing
     anything, so it goes in as a new rule and nothing is retired.
 
+## Why a correction can be refused
+
+A correction has to say what is true, not only that the answer is wrong. Given
+"no, that's wrong" and nothing else, the model drafting the rule has only the
+question and the answer in front of it, so it restates the answer. That
+restatement is then judged "same" as the rule it came from, and merged into it
+as further evidence.
+
+The result is the exact failure this path exists to prevent: a maintainer's
+objection raising the confidence of the thing they objected to. It is not
+hypothetical. The first vague correction this system received, "no actually its
+something else", was absorbed as a second supporting comment for the rule being
+disputed.
+
+So the drafting step may return `usable: false`, and then nothing is written at
+all.
+
 ## Why one supersession is not enough
 
 The first correction this system took retired exactly the rule it was aimed at,
@@ -126,6 +143,15 @@ log = logging.getLogger(__name__)
 # citing nothing.
 NO_PR = 0
 
+
+class UnusableCorrection(ValueError):
+    """The correction says the answer is wrong without saying what is true.
+
+    Carries what the maintainer would need to add, so the caller can say so
+    rather than failing opaquely.
+    """
+
+
 SYSTEM = """\
 A maintainer has corrected an answer this system gave a contributor. Turn the \
 correction into a single convention the project can be held to.
@@ -147,9 +173,18 @@ convention. Inventing the rest is how a memory becomes untrustworthy.
 style, or process. Set scope_pattern only for directory or file scope, as a \
 SQL LIKE pattern such as 'pandas/tests/%'. Otherwise leave it null.
 
+  - **Refuse if the correction does not say what the project actually does.** \
+"No, that's wrong", "this is not right", "something else" and the like state \
+that the answer is wrong without stating what is true. There is nothing to \
+record. Set usable to false and say what you would need to be told. Do not \
+fall back on the earlier answer, and do not invent the rest: a guess here \
+enters memory as though a maintainer had said it.
+
 Reply with JSON only:
 
 {
+  "usable": true or false,
+  "needed": "what the maintainer would have to say, when usable is false",
   "statement": "the convention, one sentence, imperative",
   "rationale": "why, in one sentence, only if the maintainer gave a reason",
   "scope": "repo" | "directory" | "file" | "api" | "testing" | "docs" | "style" | "process",
@@ -237,8 +272,23 @@ async def _statement_from_correction(chat, turn: Turn, maintainer: str, correcti
     )
 
     statement = (result.get("statement") or "").strip()
-    if not statement:
-        raise ValueError("the correction did not yield a rule statement")
+    if result.get("usable") is False or not statement:
+        # Nothing is written. A correction saying only that the answer is wrong
+        # leaves the model with just the question and the earlier answer to work
+        # from, so it restates the answer, and that restatement is then judged
+        # "same" as the rule it came from and merged into it as evidence.
+        #
+        # That is not a near miss, it is the failure this whole path exists to
+        # prevent: a maintainer's objection strengthening the thing they were
+        # objecting to. It happened on the first vague correction this system
+        # received, and the rule gained a second supporting comment from
+        # somebody disputing it.
+        needed = (result.get("needed") or "").strip()
+        raise UnusableCorrection(
+            "A correction has to say what the project actually does, not only that "
+            "the answer is wrong. Nothing was recorded."
+            + (f" Missing: {needed}." if needed else "")
+        )
 
     scope = (result.get("scope") or "repo").strip().lower()
     if scope not in VALID_SCOPES:

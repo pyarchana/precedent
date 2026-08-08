@@ -21,10 +21,12 @@ import pytest
 from precedent.agent.answer import (
     Answer,
     citation_label,
+    correction_author,
     extract_correction_citations,
     render_material,
 )
 from precedent.agent.correct import (
+    UnusableCorrection,
     _find_target,
     _statement_from_correction,
     sweep_contradicted,
@@ -139,12 +141,34 @@ class TestCitationLabels:
     def test_an_ordinary_comment_keeps_its_pull_request_citation(self):
         assert citation_label(_hit()) == "[PR #12345]"
 
-    def test_correction_labels_round_trip_through_extraction(self):
-        # The verification path only works if what is rendered is exactly what
-        # the extractor finds.
+    def test_the_full_label_is_recognised(self):
         hit = _hit(kind="maintainer_correction", pr_number=0, author="jbrock")
         label = citation_label(hit)
-        assert extract_correction_citations(f"Do the thing {label}.") == [label]
+        assert extract_correction_citations(f"Do the thing {label}.") == ["jbrock"]
+
+    def test_a_label_without_its_date_still_verifies(self):
+        # Models routinely drop the date. Requiring the whole rendered string
+        # to match reported correctly cited answers as fabricating citations,
+        # which discredits the check on exactly the answers that used a
+        # correction properly.
+        assert extract_correction_citations("Do it [correction by jbrock].") == ["jbrock"]
+
+    def test_an_answer_citing_a_correction_is_trustworthy(self):
+        recall = Recall(
+            question="q",
+            rules=[
+                _rule(
+                    origin="correction",
+                    citations=[_hit(kind="maintainer_correction", pr_number=0, author="jbrock")],
+                )
+            ],
+        )
+        supplied = [c for r in recall.rules for c in r.citations]
+        available = {correction_author(c) for c in supplied}
+        assert extract_correction_citations("x [correction by jbrock]")[0] in available
+
+    def test_crediting_someone_who_corrected_nothing_is_still_caught(self):
+        assert extract_correction_citations("x [correction by nobody, 2026-01-01]") == ["nobody"]
 
     def test_a_corrected_rule_says_so_in_the_material(self):
         material = render_material(
@@ -209,6 +233,56 @@ class TestStatementFromCorrection:
         chat = FakeChat({"statement": "  ", "scope": "repo"})
         with pytest.raises(ValueError):
             await _statement_from_correction(chat, Turn("s", 1, "q", "a"), "maint", "correction")
+
+
+class TestUnusableCorrections:
+    """A correction must say what is true, not only that the answer is wrong.
+
+    Given "no, that's wrong" alone, the drafting model has nothing but the
+    question and the answer to work from, so it restates the answer. That
+    restatement is judged "same" as the rule it came from and merged in as
+    further evidence, which means a maintainer's objection ends up raising the
+    confidence of the thing they objected to.
+
+    That is not hypothetical. "no actually its something else" did exactly
+    that, and the disputed rule gained a second supporting comment from the
+    person disputing it.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_contentless_correction_is_refused(self):
+        chat = FakeChat({"usable": False, "needed": "say where the number goes"})
+        with pytest.raises(UnusableCorrection) as caught:
+            await _statement_from_correction(
+                chat,
+                Turn("s", 1, "where does it go?", "at the top"),
+                "maint",
+                "no actually its something else.",
+            )
+        assert "say where the number goes" in str(caught.value)
+
+    @pytest.mark.asyncio
+    async def test_the_refusal_explains_what_is_missing_even_when_the_model_does_not(self):
+        chat = FakeChat({"usable": False})
+        with pytest.raises(UnusableCorrection) as caught:
+            await _statement_from_correction(chat, Turn("s", 1, "q", "a"), "maint", "wrong")
+        assert str(caught.value).strip()
+
+    @pytest.mark.asyncio
+    async def test_a_usable_correction_is_unaffected(self):
+        chat = FakeChat(
+            {"usable": True, "statement": "Put it next to the assertion.", "scope": "testing"}
+        )
+        drafted = await _statement_from_correction(chat, Turn("s", 1, "q", "a"), "maint", "no, ...")
+        assert drafted["statement"] == "Put it next to the assertion."
+
+    @pytest.mark.asyncio
+    async def test_a_response_omitting_usable_is_still_accepted(self):
+        # The flag was added after the prompt shipped; absence must not be read
+        # as refusal, or every correction would fail closed.
+        chat = FakeChat({"statement": "Do the thing.", "scope": "repo"})
+        drafted = await _statement_from_correction(chat, Turn("s", 1, "q", "a"), "maint", "no...")
+        assert drafted["statement"] == "Do the thing."
 
 
 class FakeEngine:

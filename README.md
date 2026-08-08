@@ -26,6 +26,28 @@ Target repository: [pandas-dev/pandas](https://github.com/pandas-dev/pandas).
 
 Every table is keyed on `repo_id`; the system is multi-tenant from the schema up.
 
+## Running it
+
+```bash
+pip install -e ".[db,api]"
+python -m precedent.db.migrate --create-db
+uvicorn precedent.api.app:app --port 8000
+```
+
+Then open http://localhost:8000. `COCKROACH_DSN` and `OPENAI_API_KEY` come from
+`.env`; see `.env.example`.
+
+The page is one self-contained file with no build step, served by the same
+process as the API, so the whole demo deploys as a single unit.
+
+Three settings exist because the deployed version is a public URL in front of a
+paid model. `API_BUDGET_USD` is a ceiling across the process rather than per
+request, since a per-request cap bounds nothing when anyone can send a thousand
+requests; when it is reached the API returns 503 rather than falling back to an
+unsourced answer. `API_RATE_LIMIT_PER_MINUTE` is the cruder guard.
+`API_CORRECTIONS_ENABLED` turns off writes, because a public demo anyone can
+rewrite is a demo that will be rewritten.
+
 ## Asking, and correcting
 
 Retrieval with citations is a search engine with good manners. What makes this a
