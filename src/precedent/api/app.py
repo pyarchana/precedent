@@ -10,15 +10,25 @@ calls and back.
 Two things the command line never needed, both consequences of the URL being
 public:
 
-**A spend ceiling across the process, not per request.** The project runs on a
-single unreplenishable top-up. A per-request cap bounds nothing when anyone can
-send a thousand requests, so the budget is shared by every caller and the
-answer once it is gone is a plain 503 rather than a degraded answer from the
-base model. Falling back to unsourced generation when the money runs out would
-break the one guarantee this system makes.
+**A spend ceiling that outlives the process.** The project runs on a single
+unreplenishable top-up. A per-request cap bounds nothing when anyone can send a
+thousand requests, so the budget is shared by every caller, and once it is gone
+the answer is a plain 503 rather than a degraded answer from the base model.
+Falling back to unsourced generation when the money runs out would break the one
+guarantee this system makes.
+
+The counter lives in the database rather than in memory, and that is not
+over-engineering. The first version kept it on the model client, which is
+correct under uvicorn and useless under Lambda: Mangum runs the ASGI lifespan on
+every invocation, so the client and its counter were rebuilt per request and the
+ceiling restarted at zero each time. Even with that fixed, Lambda runs several
+execution environments at once and each would believe it had the whole budget.
+A ceiling that resets is not a ceiling.
 
 **A rate limit.** Same reason, faster failure mode. It is per client address and
-deliberately crude; anything more would need shared state this does not have.
+per process, so it shares the weakness the budget no longer has; it is a speed
+bump rather than a guarantee, and the durable budget is what actually bounds the
+damage.
 
 Corrections carry a separate switch. They write to memory, and a public demo
 that anyone can rewrite is a demo that will be rewritten, so
@@ -30,6 +40,7 @@ that anyone can rewrite is a demo that will be rewritten, so
 from __future__ import annotations
 
 import logging
+import os
 import time
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
@@ -68,22 +79,32 @@ class Deps:
 deps = Deps()
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
+# True when running inside Lambda, where the lifespan contract is different.
+IN_LAMBDA = bool(os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+
+
+async def ensure_deps() -> None:
+    """Build the shared clients once, and only once.
+
+    Idempotent because Mangum runs the ASGI lifespan on **every invocation**,
+    not once per execution environment. Rebuilding here would open a fresh
+    connection pool to a cluster in another region on every request, which was
+    measured at over three seconds even for a static page.
+
+    Worse, it would reset the model client, and with it the spend counter, so
+    the budget ceiling would restart at zero on every request and cap nothing
+    at all.
+    """
+    if deps.engine is not None:
+        return
+
     settings = get_settings()
     if not settings.cockroach_dsn:
         raise RuntimeError("COCKROACH_DSN is not set")
 
-    deps.engine = create_engine(settings.cockroach_dsn)
-    deps.provider = OpenAIEmbeddings(
-        settings.openai_api_key,
-        model=settings.embedding_model,
-        dimensions=settings.embedding_dim,
-    )
-    deps.chat = ChatClient(settings.openai_api_key, max_spend=settings.api_budget_usd)
-
+    engine = create_engine(settings.cockroach_dsn)
     owner, _, name = settings.repo_slug.partition("/")
-    async with deps.engine.connect() as conn:
+    async with engine.connect() as conn:
         deps.repo_id = str(
             (
                 await conn.execute(
@@ -92,13 +113,29 @@ async def lifespan(app: FastAPI):
                 )
             ).scalar_one()
         )
+
+    deps.provider = OpenAIEmbeddings(
+        settings.openai_api_key,
+        model=settings.embedding_model,
+        dimensions=settings.embedding_dim,
+    )
+    deps.chat = ChatClient(settings.openai_api_key, max_spend=settings.api_budget_usd)
+    deps.engine = engine
     log.info("ready: repo %s, budget $%.2f", settings.repo_slug, settings.api_budget_usd)
 
-    yield
 
-    await deps.provider.aclose()
-    await deps.chat.aclose()
-    await deps.engine.dispose()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await ensure_deps()
+    yield
+    # Nothing is torn down under Lambda. The lifespan ends when the invocation
+    # ends, and disposing the pool here would throw away the connection the
+    # next request is about to want.
+    if not IN_LAMBDA:
+        await deps.provider.aclose()
+        await deps.chat.aclose()
+        await deps.engine.dispose()
+        deps.engine = None
 
 
 app = FastAPI(
@@ -137,6 +174,58 @@ def enforce_rate_limit(request: Request) -> None:
             detail=f"Rate limit is {limit} requests a minute. This demo runs on a fixed budget.",
         )
     window.append(now)
+
+
+# Spend is read before a call and recorded after it, both against the shared
+# row rather than any process's memory. See migrations/0004_api_usage.sql for
+# why a per-process counter cannot hold a ceiling here.
+SPEND_TODAY = text("SELECT coalesce(spend_usd, 0) FROM api_usage WHERE day = current_date()")
+
+RECORD_SPEND = text("""
+    INSERT INTO api_usage (day, calls, spend_usd)
+    VALUES (current_date(), 1, :amount)
+    ON CONFLICT (day) DO UPDATE SET
+        calls = api_usage.calls + 1,
+        spend_usd = api_usage.spend_usd + :amount,
+        updated_at = now()
+""")
+
+
+async def spend_today() -> float:
+    async with deps.engine.connect() as conn:
+        return float((await conn.execute(SPEND_TODAY)).scalar() or 0.0)
+
+
+async def check_budget() -> None:
+    """Refuse before spending, not after."""
+    limit = get_settings().api_budget_usd
+    if limit <= 0:
+        return
+    if await spend_today() >= limit:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "This demo's model budget for today is spent. Memory is still "
+                "readable at /rules, and questions work again tomorrow."
+            ),
+        )
+
+
+async def record_spend(amount: float) -> None:
+    """Never allowed to fail the request it is accounting for.
+
+    The answer has already been produced and the money already spent by the
+    time this runs. Losing the record understates the total, which is a problem
+    worth logging and not one worth turning into a 500 for someone who asked a
+    perfectly good question.
+    """
+    if amount <= 0:
+        return
+    try:
+        async with deps.engine.begin() as conn:
+            await conn.execute(RECORD_SPEND, {"amount": amount})
+    except Exception:
+        log.exception("could not record $%.4f of spend; the daily total is now low", amount)
 
 
 class AskRequest(BaseModel):
@@ -196,7 +285,7 @@ async def health() -> dict:
     return {
         "status": "ok",
         "repo": settings.repo_slug,
-        "spent_usd": round(getattr(deps.chat, "spent", 0.0), 4),
+        "spent_today_usd": round(await spend_today(), 4),
         "budget_usd": settings.api_budget_usd,
         "corrections_enabled": settings.api_corrections_enabled,
     }
@@ -205,9 +294,11 @@ async def health() -> dict:
 @app.post("/ask", response_model=AskResponse)
 async def ask(body: AskRequest, request: Request) -> AskResponse:
     enforce_rate_limit(request)
+    await check_budget()
 
     memory = await recall(deps.engine, deps.provider, repo_id=deps.repo_id, question=body.question)
 
+    before = deps.chat.spent
     try:
         result = await answer_question(deps.chat, memory)
     except BudgetExhausted as exc:
@@ -219,6 +310,9 @@ async def ask(body: AskRequest, request: Request) -> AskResponse:
         ) from exc
     except QuotaExhausted as exc:
         raise HTTPException(status_code=503, detail="The model account has no credit.") from exc
+    finally:
+        # In `finally` because a call that raised may still have spent money.
+        await record_spend(deps.chat.spent - before)
 
     session_id = body.session_id or await open_session(
         deps.engine, repo_id=deps.repo_id, contributor_login=body.contributor
@@ -287,7 +381,9 @@ async def correct(body: CorrectRequest, request: Request) -> CorrectResponse:
     if not settings.api_corrections_enabled:
         raise HTTPException(status_code=403, detail="Corrections are disabled on this deployment.")
     enforce_rate_limit(request)
+    await check_budget()
 
+    before = deps.chat.spent
     try:
         result = await apply_correction(
             deps.engine,
@@ -307,6 +403,8 @@ async def correct(body: CorrectRequest, request: Request) -> CorrectResponse:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except BudgetExhausted as exc:
         raise HTTPException(status_code=503, detail="This demo's model budget is spent.") from exc
+    finally:
+        await record_spend(deps.chat.spent - before)
 
     return CorrectResponse(
         statement=result.statement,
