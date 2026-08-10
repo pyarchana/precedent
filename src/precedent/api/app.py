@@ -74,6 +74,9 @@ class Deps:
     provider: object = None
     chat: object = None
     repo_id: str = ""
+    # Why startup failed, when it did. Kept so the function can say what is
+    # wrong instead of returning an opaque 502 that requires CloudWatch to read.
+    error: str = ""
 
 
 deps = Deps()
@@ -99,29 +102,43 @@ async def ensure_deps() -> None:
         return
 
     settings = get_settings()
-    if not settings.cockroach_dsn:
-        raise RuntimeError("COCKROACH_DSN is not set")
+    try:
+        if not settings.cockroach_dsn:
+            raise RuntimeError("COCKROACH_DSN is not set")
+        if not settings.openai_api_key:
+            raise RuntimeError("OPENAI_API_KEY is not set")
 
-    engine = create_engine(settings.cockroach_dsn)
-    owner, _, name = settings.repo_slug.partition("/")
-    async with engine.connect() as conn:
-        deps.repo_id = str(
-            (
-                await conn.execute(
-                    text("SELECT id FROM repos WHERE owner = :o AND name = :n"),
-                    {"o": owner, "n": name},
-                )
-            ).scalar_one()
+        engine = create_engine(settings.cockroach_dsn)
+        owner, _, name = settings.repo_slug.partition("/")
+        async with engine.connect() as conn:
+            deps.repo_id = str(
+                (
+                    await conn.execute(
+                        text("SELECT id FROM repos WHERE owner = :o AND name = :n"),
+                        {"o": owner, "n": name},
+                    )
+                ).scalar_one()
+            )
+
+        deps.provider = OpenAIEmbeddings(
+            settings.openai_api_key,
+            model=settings.embedding_model,
+            dimensions=settings.embedding_dim,
         )
-
-    deps.provider = OpenAIEmbeddings(
-        settings.openai_api_key,
-        model=settings.embedding_model,
-        dimensions=settings.embedding_dim,
-    )
-    deps.chat = ChatClient(settings.openai_api_key, max_spend=settings.api_budget_usd)
-    deps.engine = engine
-    log.info("ready: repo %s, budget $%.2f", settings.repo_slug, settings.api_budget_usd)
+        deps.chat = ChatClient(settings.openai_api_key, max_spend=settings.api_budget_usd)
+        # Assigned last, so a partial failure leaves this None and the next
+        # invocation retries rather than serving a half-built application.
+        deps.engine = engine
+        deps.error = ""
+        log.info("ready: repo %s, budget $%.2f", settings.repo_slug, settings.api_budget_usd)
+    except Exception as exc:
+        # Deliberately not re-raised. Under Mangum a lifespan failure becomes a
+        # bare 502 with the reason only in CloudWatch, so a misconfigured
+        # deployment looks identical to a broken one. Recording it here lets
+        # /health say which environment variable is missing, which is the
+        # difference between a two minute fix and an afternoon.
+        deps.error = f"{type(exc).__name__}: {exc}"
+        log.exception("startup failed")
 
 
 @asynccontextmanager
@@ -131,11 +148,20 @@ async def lifespan(app: FastAPI):
     # Nothing is torn down under Lambda. The lifespan ends when the invocation
     # ends, and disposing the pool here would throw away the connection the
     # next request is about to want.
-    if not IN_LAMBDA:
+    if not IN_LAMBDA and deps.engine is not None:
         await deps.provider.aclose()
         await deps.chat.aclose()
         await deps.engine.dispose()
         deps.engine = None
+
+
+def require_ready() -> None:
+    """Refuse with the reason rather than failing shapelessly."""
+    if deps.engine is None:
+        raise HTTPException(
+            status_code=503,
+            detail=deps.error or "The service is still starting.",
+        )
 
 
 app = FastAPI(
@@ -159,8 +185,19 @@ app.add_middleware(
 _seen: dict[str, deque[float]] = defaultdict(deque)
 
 
-def enforce_rate_limit(request: Request) -> None:
-    limit = get_settings().api_rate_limit_per_minute
+def enforce_rate_limit(request: Request, multiplier: int = 1) -> None:
+    """Cap requests per client address per minute.
+
+    `multiplier` loosens the cap for endpoints that cost no money. They are not
+    free, though: every read still consumes CockroachDB request units, and the
+    cluster runs on a free tier with a zero spend limit, so exhausting those
+    takes the whole demo down rather than merely stopping answers.
+
+    Per process, so several Lambda containers each enforce their own count.
+    That makes this a speed bump rather than a guarantee; the durable thing is
+    the spend ledger, which every container shares.
+    """
+    limit = get_settings().api_rate_limit_per_minute * multiplier
     if limit <= 0:
         return
     who = request.client.host if request.client else "unknown"
@@ -281,18 +318,35 @@ def _citation(hit) -> Citation:
 
 @app.get("/health")
 async def health() -> dict:
+    """Answers even when startup failed, because that is when it is needed."""
     settings = get_settings()
-    return {
-        "status": "ok",
+    ready = deps.engine is not None
+    body: dict = {
+        "status": "ok" if ready else "misconfigured",
         "repo": settings.repo_slug,
-        "spent_today_usd": round(await spend_today(), 4),
-        "budget_usd": settings.api_budget_usd,
         "corrections_enabled": settings.api_corrections_enabled,
+        "budget_usd": settings.api_budget_usd,
     }
+    if not ready:
+        # Names the missing setting, never its value.
+        body["error"] = deps.error or "not started"
+        body["missing"] = [
+            name
+            for name, present in (
+                ("COCKROACH_DSN", bool(settings.cockroach_dsn)),
+                ("OPENAI_API_KEY", bool(settings.openai_api_key)),
+            )
+            if not present
+        ]
+        return body
+
+    body["spent_today_usd"] = round(await spend_today(), 4)
+    return body
 
 
 @app.post("/ask", response_model=AskResponse)
 async def ask(body: AskRequest, request: Request) -> AskResponse:
+    require_ready()
     enforce_rate_limit(request)
     await check_budget()
 
@@ -377,6 +431,7 @@ class CorrectResponse(BaseModel):
 
 @app.post("/correct", response_model=CorrectResponse)
 async def correct(body: CorrectRequest, request: Request) -> CorrectResponse:
+    require_ready()
     settings = get_settings()
     if not settings.api_corrections_enabled:
         raise HTTPException(status_code=403, detail="Corrections are disabled on this deployment.")
@@ -442,8 +497,12 @@ SUPERSEDED_RULES = text("""
 
 
 @app.get("/rules")
-async def rules(limit: int = 20) -> dict:
-    """Read-only, unmetered, and available after the budget is gone."""
+async def rules(request: Request, limit: int = 20) -> dict:
+    """Read-only, unbilled, and available after the model budget is gone."""
+    require_ready()
+    # Loosely limited rather than unlimited: it spends no money but it does
+    # spend request units on a free-tier cluster.
+    enforce_rate_limit(request, multiplier=6)
     limit = max(1, min(limit, 100))
     async with deps.engine.connect() as conn:
         active = (
