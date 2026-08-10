@@ -1,30 +1,148 @@
+<div align="center">
+
 # Precedent
 
-An agentic memory layer for open source maintainers, built on CockroachDB.
+### Agentic memory for open source maintainers, so a convention only has to be explained once
+
+[![Live demo](https://img.shields.io/badge/Live_demo-Try_it-9184d9?style=for-the-badge)](https://oczmd7cauwjhlt6zvjozdqz5i40rmdxj.lambda-url.ap-south-1.on.aws)
+
+[![CockroachDB](https://img.shields.io/badge/CockroachDB-Vector_Index-6933FF?logo=cockroachlabs&logoColor=white)](https://www.cockroachlabs.com/)
+[![AWS](https://img.shields.io/badge/AWS-Lambda_+_S3-FF9900?logo=amazonaws&logoColor=white)](https://aws.amazon.com/lambda/)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Tests](https://img.shields.io/badge/tests-98_passing-2ea44f)](tests/)
+[![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
+
+**86,317** review comments &nbsp;·&nbsp; **21,762** pull requests &nbsp;·&nbsp; **2011 to 2026** &nbsp;·&nbsp; **298** learned conventions
+
+</div>
+
+---
 
 Large projects answer the same contributor questions forever. The answers exist,
 buried in review threads going back a decade, but they are not retrievable, and a
 maintainer's correction today does nothing for the person who asks the same thing
-next month. Precedent reads a repository's entire review history, distils the durable
+next month.
+
+Precedent reads a repository's entire review history, distils the durable
 conventions out of it, answers contributor questions with citations back to the
-specific PRs the claim came from, and lets a maintainer correct an answer once so that
-every later answer reflects the correction.
+specific pull requests the claim came from, and lets a maintainer correct an
+answer once so that every later answer reflects the correction.
 
 Target repository: [pandas-dev/pandas](https://github.com/pandas-dev/pandas).
 
-> Status: in development. This README grows as the system does.
+```
+contributor   ask            ->   answer, cited to real pull requests
+                                    |
+maintainer    "not quite,     ->   the contradicted rule is retired,
+               actually X"          and so are its near duplicates
+                                    |
+contributor   ask again       ->   the corrected answer, citing the correction
+```
+
+## Built with
+
+| CockroachDB | How it is used |
+| --- | --- |
+| **Distributed vector indexing** | `idx_rules_embedding` serves the agent's hot path. `EXPLAIN` confirms `vector search: rules@idx_rules_embedding`. Embeddings live beside the rows they describe, so there is no second store to keep consistent. |
+| **ccloud CLI** | Provisioned and manages the serverless cluster in `ap-south-1`, next to the Lambda that queries it. |
+
+| AWS | How it is used |
+| --- | --- |
+| **Lambda** | Serves the whole application, API and page, behind a Function URL. |
+| **S3** | Holds the raw ingested review history, 3,801 gzipped pages, staged before transform. |
 
 ## Memory model
+
+Four kinds of memory, one database. Not four services pretending to be one
+system.
 
 | Store | Table | What it holds |
 | --- | --- | --- |
 | Episodic | `review_comments` | Individual review comments, embedded for semantic search |
 | Semantic | `rules` | Distilled repo conventions, with confidence and supersession history |
 | Provenance | `rule_evidence` | Which comments each rule was learned from |
-| Entity | `contributors` | Per-repo contributor state: what they have touched, what they have been told |
-| Working | `sessions` | Current conversation state |
+| Entity | `contributors` | Per-repo contributor state: volume, tenure, and areas touched |
+| Working | `sessions`, `session_turns` | The conversation, and which rules each answer used |
+| Corrections | `corrections` | What a maintainer corrected, and what it changed |
 
 Every table is keyed on `repo_id`; the system is multi-tenant from the schema up.
+
+Embeddings sit in the same tables as the data they describe, indexed with
+CockroachDB's distributed vector index, so retrieval and the operational data
+can never disagree about what the project said.
+
+## Asking, and correcting
+
+Retrieval with citations is a search engine with good manners. What makes this a
+memory is that a maintainer can correct an answer once, and the next contributor
+to ask gets the corrected one.
+
+```
+$ python -m precedent.agent.ask "Where do I put the GitHub issue number in a test?"
+You should add the GitHub issue number as a comment at the top of each test in
+the format # GH<issue number> [PR #65052].
+
+to correct this answer: python -m precedent.agent.correct 59d1f3b0 1 "..."
+```
+
+```
+$ python -m precedent.agent.correct 59d1f3b0 1 \
+    "Not quite. The number goes next to the specific assertion that covers the
+     issue, not at the top of the test, and the format is # GH#12345." --as pyarchana
+
+retired: Add the GitHub issue number as a comment at the top of each test...
+reason: The existing rule requires the issue number at the top of each test,
+while the new rule specifies it must be next to specific assertions, making it
+impossible to follow both simultaneously.
+```
+
+```
+$ python -m precedent.agent.ask "Where do I put the GitHub issue number in a test?"
+Add the GitHub issue number as a comment next to the specific assertion or test
+case that covers the issue in the format # GH#<issue number>
+[correction by pyarchana, 2026-08-07].
+```
+
+Four things about that are deliberate.
+
+**The correction is aimed at the rule the answer actually used**, not at the
+rule nearest to the correction's wording. Every answer records the rule ids it
+was built from, so a correction arriving weeks later can still see them.
+Nearest-neighbour would occasionally retire a different rule than the maintainer
+meant, which is worse than doing nothing.
+
+**A model decides whether it is a contradiction.** Embeddings put opposites
+close together: "use single quotes" and "use double quotes" sit nearer to each
+other than two genuine duplicates do. An earlier version merged on distance
+alone, and feeding it a reversal made the reversal *further evidence for* the
+thing it reversed. A correction that strengthens the error it corrects is the
+one failure this system cannot have.
+
+**A correction that agrees with the cited rule becomes evidence for it**, not a
+second copy of it. That case means the rule was right and the answer misused it.
+
+**Nothing is deleted.** The retired rule keeps its evidence, its confidence and
+the reason it was replaced, because "we used to say X, then this happened" is
+what makes the memory explicable rather than merely current.
+
+Corrections are stored as `review_comments` of kind `maintainer_correction`, so
+they are embedded, retrieved and cited on the same path as anything said on a
+real pull request. They are never rendered as a PR citation, and every citation
+in an answer, PR or correction, is verified against what was actually retrieved
+before the answer is shown.
+
+### Scoring a correction
+
+Confidence is built from independent voices, distinct pull requests, persistence
+and recency. A correction has one author, one occasion and no history, so on
+those terms it scores near the floor, and the agent would present a maintainer's
+own words as "weakly evidenced" while treating a pattern inferred from three
+pull requests in 2016 as settled.
+
+Rules therefore record their `origin`, and a correction gets a floor of 0.85
+rather than a score. The floor sits below what a genuinely well-attested
+convention reaches, so a correction outranks the rule it replaced without
+outranking the whole corpus.
 
 ## Running it
 
@@ -109,79 +227,6 @@ The counter therefore lives in the database, keyed by day, so the cap is a daily
 allowance every container shares. `/rules` stays readable once it is reached,
 because refusing to answer is fine and refusing to show what memory holds is
 not.
-
-## Asking, and correcting
-
-Retrieval with citations is a search engine with good manners. What makes this a
-memory is that a maintainer can correct an answer once, and the next contributor
-to ask gets the corrected one.
-
-```
-$ python -m precedent.agent.ask "Where do I put the GitHub issue number in a test?"
-You should add the GitHub issue number as a comment at the top of each test in
-the format # GH<issue number> [PR #65052].
-
-to correct this answer: python -m precedent.agent.correct 59d1f3b0 1 "..."
-```
-
-```
-$ python -m precedent.agent.correct 59d1f3b0 1 \
-    "Not quite. The number goes next to the specific assertion that covers the
-     issue, not at the top of the test, and the format is # GH#12345." --as pyarchana
-
-retired: Add the GitHub issue number as a comment at the top of each test...
-reason: The existing rule requires the issue number at the top of each test,
-while the new rule specifies it must be next to specific assertions, making it
-impossible to follow both simultaneously.
-```
-
-```
-$ python -m precedent.agent.ask "Where do I put the GitHub issue number in a test?"
-Add the GitHub issue number as a comment next to the specific assertion or test
-case that covers the issue in the format # GH#<issue number>
-[correction by pyarchana, 2026-08-07].
-```
-
-Four things about that are deliberate.
-
-**The correction is aimed at the rule the answer actually used**, not at the
-rule nearest to the correction's wording. Every answer records the rule ids it
-was built from, so a correction arriving weeks later can still see them.
-Nearest-neighbour would occasionally retire a different rule than the maintainer
-meant, which is worse than doing nothing.
-
-**A model decides whether it is a contradiction.** Embeddings put opposites
-close together: "use single quotes" and "use double quotes" sit nearer to each
-other than two genuine duplicates do. An earlier version merged on distance
-alone, and feeding it a reversal made the reversal *further evidence for* the
-thing it reversed. A correction that strengthens the error it corrects is the
-one failure this system cannot have.
-
-**A correction that agrees with the cited rule becomes evidence for it**, not a
-second copy of it. That case means the rule was right and the answer misused it.
-
-**Nothing is deleted.** The retired rule keeps its evidence, its confidence and
-the reason it was replaced, because "we used to say X, then this happened" is
-what makes the memory explicable rather than merely current.
-
-Corrections are stored as `review_comments` of kind `maintainer_correction`, so
-they are embedded, retrieved and cited on the same path as anything said on a
-real pull request. They are never rendered as a PR citation, and every citation
-in an answer, PR or correction, is verified against what was actually retrieved
-before the answer is shown.
-
-### Scoring a correction
-
-Confidence is built from independent voices, distinct pull requests, persistence
-and recency. A correction has one author, one occasion and no history, so on
-those terms it scores near the floor, and the agent would present a maintainer's
-own words as "weakly evidenced" while treating a pattern inferred from three
-pull requests in 2016 as settled.
-
-Rules therefore record their `origin`, and a correction gets a floor of 0.85
-rather than a score. The floor sits below what a genuinely well-attested
-convention reaches, so a correction outranks the rule it replaced without
-outranking the whole corpus.
 
 ## Running the ingest
 
