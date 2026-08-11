@@ -134,6 +134,7 @@ from precedent.extract.persist import (
     persist_rule,
     supersede,
 )
+from precedent.extract.schemas import DraftedRule, Verdict, validated
 
 log = logging.getLogger(__name__)
 
@@ -271,8 +272,9 @@ async def _statement_from_correction(chat, turn: Turn, maintainer: str, correcti
         ]
     )
 
-    statement = (result.get("statement") or "").strip()
-    if result.get("usable") is False or not statement:
+    parsed = validated(DraftedRule, result, context="drafting a correction")
+    statement = parsed.statement.strip()
+    if not parsed.is_usable:
         # Nothing is written. A correction saying only that the answer is wrong
         # leaves the model with just the question and the earlier answer to work
         # from, so it restates the answer, and that restatement is then judged
@@ -283,19 +285,17 @@ async def _statement_from_correction(chat, turn: Turn, maintainer: str, correcti
         # objecting to. It happened on the first vague correction this system
         # received, and the rule gained a second supporting comment from
         # somebody disputing it.
-        needed = (result.get("needed") or "").strip()
+        needed = parsed.needed.strip()
         raise UnusableCorrection(
             "A correction has to say what the project actually does, not only that "
             "the answer is wrong. Nothing was recorded."
             + (f" Missing: {needed}." if needed else "")
         )
 
-    scope = (result.get("scope") or "repo").strip().lower()
-    if scope not in VALID_SCOPES:
-        log.warning("model returned unknown scope %r; recording as repo scope", scope)
-        scope = "repo"
-
-    pattern = result.get("scope_pattern")
+    # Scope is already constrained to the enum by validation; an unknown value
+    # became "repo" there rather than needing checking again here.
+    scope = parsed.scope
+    pattern = parsed.scope_pattern
     if pattern and scope not in ("directory", "file"):
         # A pattern on a scope that does not use one would be stored and never
         # applied, which reads as a constraint the memory is not enforcing.
@@ -304,7 +304,7 @@ async def _statement_from_correction(chat, turn: Turn, maintainer: str, correcti
 
     return {
         "statement": statement,
-        "rationale": (result.get("rationale") or "").strip() or None,
+        "rationale": parsed.rationale.strip() or None,
         "scope": scope,
         "scope_pattern": pattern,
     }
@@ -381,8 +381,8 @@ async def _find_target(engine, chat, *, repo_id: str, turn: Turn, statement: str
                 new_date=today,
             )
         )
-        relation = verdict.get("relation")
-        reason = verdict.get("reason", "")
+        judged = validated(Verdict, verdict, context="comparing a correction to a cited rule")
+        relation, reason = judged.relation, judged.reason
 
         if relation in ("contradicts", "same"):
             return rule, relation, reason
@@ -476,10 +476,11 @@ async def sweep_contradicted(
                 new_date=datetime.now(UTC).date().isoformat(),
             )
         )
-        if verdict.get("relation") != "contradicts":
+        judged = validated(Verdict, verdict, context="sweeping for contradictions")
+        if judged.relation != "contradicts":
             continue
 
-        reason = verdict.get("reason", "")
+        reason = judged.reason
         await supersede(
             engine,
             repo_id=repo_id,

@@ -56,6 +56,7 @@ from precedent.embed.provider import EmbeddingProvider
 from precedent.embed.vector import encode
 from precedent.extract import contradiction
 from precedent.extract.persist import Candidate, persist_rule
+from precedent.extract.schemas import DraftedRule, validated
 from precedent.transform.normalize import MAINTAINER_ASSOCIATIONS
 
 log = logging.getLogger(__name__)
@@ -262,15 +263,14 @@ async def teach(
         ]
     )
 
-    statement = (drafted.get("statement") or "").strip()
-    if drafted.get("usable") is False or not statement:
+    draft = validated(DraftedRule, drafted, context="drafting a taught rule")
+    statement = draft.statement.strip()
+    if not draft.is_usable:
         log.info("nothing to learn from %s on #%s", parsed["author"], parsed["pr_number"])
         return None
 
-    scope = (drafted.get("scope") or "repo").strip().lower()
-    if scope not in VALID_SCOPES:
-        scope = "repo"
-    pattern = drafted.get("scope_pattern") if scope in ("directory", "file") else None
+    scope = draft.scope
+    pattern = draft.scope_pattern if scope in ("directory", "file") else None
 
     comment_id = await _store(
         engine, provider, repo_id=repo_id, parsed=parsed, instruction=instruction
@@ -292,7 +292,7 @@ async def teach(
         repo_id=repo_id,
         candidate=Candidate(
             statement=statement,
-            rationale=(drafted.get("rationale") or "").strip() or None,
+            rationale=draft.rationale.strip() or None,
             scope=scope,
             scope_pattern=pattern,
             comment_ids=[comment_id],

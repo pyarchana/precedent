@@ -42,6 +42,7 @@ import re
 from dataclasses import dataclass, field
 
 from precedent.agent.retrieve import Recall
+from precedent.extract.schemas import AnswerOutput, validated
 
 log = logging.getLogger(__name__)
 
@@ -251,8 +252,9 @@ async def answer_question(chat, recall: Recall) -> Answer:
         ]
     )
 
-    text_out = (result.get("answer") or "").strip()
-    answered = bool(result.get("answered")) and bool(text_out)
+    parsed = validated(AnswerOutput, result, context="answering")
+    text_out = parsed.answer.strip()
+    answered = parsed.answered and bool(text_out)
 
     supplied = [c for rule in recall.rules for c in rule.citations] + list(recall.comments)
     # Corrections are excluded from the pull request numbers on purpose. They
@@ -309,8 +311,8 @@ async def answer_question(chat, recall: Recall) -> Answer:
         question=recall.question,
         answered=answered,
         text=text_out or NO_MEMORY,
-        confidence=result.get("confidence", "low"),
-        missing=result.get("missing", ""),
+        confidence=parsed.confidence,
+        missing=parsed.missing,
         cited_prs=cited,
         invented_prs=invented,
         invented_corrections=invented_corrections,

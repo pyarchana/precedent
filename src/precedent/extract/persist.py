@@ -69,6 +69,7 @@ from precedent.db.retry import with_retry
 from precedent.embed.provider import EmbeddingProvider
 from precedent.embed.vector import encode
 from precedent.extract.confidence import STATED_ORIGINS, score
+from precedent.extract.schemas import Verdict, validated
 
 log = logging.getLogger(__name__)
 
@@ -334,7 +335,8 @@ async def persist_rule(
                 if candidate.last_evidence_at
                 else "unknown",
             )
-            relation = verdict.get("relation")
+            judged = validated(Verdict, verdict, context="deciding whether to merge a rule")
+            relation = judged.relation
 
             if relation == "same":
                 rule_id = str(nearest["id"])
@@ -367,7 +369,7 @@ async def persist_rule(
                         "contradiction at distance %.3f, superseding %s: %s",
                         distance,
                         str(nearest["id"])[:8],
-                        verdict.get("reason", "")[:80],
+                        judged.reason[:80],
                     )
                     result = await _insert_new(engine, repo_id, candidate, vector, provider, origin)
                     await supersede(
