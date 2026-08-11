@@ -56,6 +56,13 @@ WEIGHTS = {
 # maintainers across four years should still be able to outrank it.
 STATED_DIRECTLY_FLOOR = 0.85
 
+# Rule origins where a maintainer said the thing themselves, rather than it
+# being inferred from a pattern across comments. A correction arrives attached
+# to a wrong answer and retires it; a teaching arrives on a pull request and
+# adds to memory. The provenance differs and the authority does not, so both
+# take the floor above.
+STATED_ORIGINS = frozenset({"correction", "taught"})
+
 
 @dataclass(slots=True)
 class ConfidenceBreakdown:

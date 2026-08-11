@@ -30,7 +30,6 @@ class Settings(BaseSettings):
     aws_secret_access_key: str = ""
 
     cockroach_dsn: str = ""
-    anthropic_api_key: str = ""
 
     openai_api_key: str = ""
 
@@ -43,10 +42,19 @@ class Settings(BaseSettings):
     # per-request cap bounds nothing when anyone can send a thousand requests.
     api_budget_usd: float = 1.00
     api_rate_limit_per_minute: int = 10
-    # Corrections write to memory, so they are held to a tighter limit than
-    # questions and are the thing to disable first if the demo is abused.
-    api_corrections_enabled: bool = True
+    # Corrections write to memory, and the deployed API has no way to verify
+    # that whoever claims to be a maintainer is one. Off unless deliberately
+    # switched on, because a public endpoint that rewrites memory on an
+    # unverified name is a hole, not a feature. The GitHub App path does not
+    # need this: GitHub signs those deliveries.
+    api_corrections_enabled: bool = False
     api_cors_origins: str = "*"
+
+    # The GitHub App. The secret is what makes a delivery trustworthy: it is
+    # how the webhook proves it came from GitHub, which is what lets a comment
+    # be attributed to a real person without any login at all.
+    github_webhook_secret: str = ""
+    github_trigger: str = "@precedent"
     # 1536 dimensions, matching the VECTOR columns in migration 0001. Changing
     # the model to one with a different width means rewriting those columns.
     embedding_model: str = "text-embedding-3-small"

@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from precedent.embed.provider import EmbeddingProvider
 from precedent.embed.vector import encode
+from precedent.extract.confidence import STATED_ORIGINS
 from precedent.memory.search import SearchHit, search_comments
 
 log = logging.getLogger(__name__)
@@ -52,8 +53,18 @@ class RetrievedRule:
 
     @property
     def is_correction(self) -> bool:
-        """True when a maintainer stated this rule rather than it being inferred."""
+        """Retired a wrong answer's rule."""
         return self.origin == "correction"
+
+    @property
+    def is_taught(self) -> bool:
+        """Stated directly by a maintainer on a pull request."""
+        return self.origin == "taught"
+
+    @property
+    def is_stated(self) -> bool:
+        """A maintainer said this, rather than it being inferred from a pattern."""
+        return self.origin in STATED_ORIGINS
 
     @property
     def is_weak(self) -> bool:

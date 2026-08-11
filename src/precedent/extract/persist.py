@@ -68,7 +68,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from precedent.db.retry import with_retry
 from precedent.embed.provider import EmbeddingProvider
 from precedent.embed.vector import encode
-from precedent.extract.confidence import score
+from precedent.extract.confidence import STATED_ORIGINS, score
 
 log = logging.getLogger(__name__)
 
@@ -269,7 +269,7 @@ async def _recompute(engine: AsyncEngine, repo_id: str, rule_id: str) -> float:
                 distinct_prs=row["prs"] or 0,
                 first_evidence_at=row["first_at"],
                 last_evidence_at=row["last_at"],
-                stated_directly=row["origin"] == "correction",
+                stated_directly=row["origin"] in STATED_ORIGINS,
             )
             await conn.execute(
                 UPDATE_COUNTS,
@@ -408,7 +408,7 @@ async def _insert_new(
         distinct_prs=candidate.distinct_prs,
         first_evidence_at=candidate.first_evidence_at,
         last_evidence_at=candidate.last_evidence_at,
-        stated_directly=origin == "correction",
+        stated_directly=origin in STATED_ORIGINS,
     )
 
     async def insert() -> str:
