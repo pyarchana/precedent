@@ -18,12 +18,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # setup-python, not just setup-uv. The runner's own Python lives in /usr
+      # and is externally managed, so `uv pip install --system` refuses it under
+      # PEP 668. This also makes the matrix real: without it every job used the
+      # runner default, so the 3.11 entry was testing 3.12 and passing.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
       - name: Install
         run: uv pip install --system -e ".[db,api,aws,lambda,dev]"
+
+      - name: Confirm the interpreter is the one the matrix asked for
+        run: python -c "import sys; print(sys.version); assert sys.version.startswith('${{ matrix.python-version }}')"
 
       - name: Lint
         run: |
@@ -62,6 +73,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # Matches the Lambda runtime the package targets.
+          python-version: "3.12"
       - uses: astral-sh/setup-uv@v5
       - run: uv pip install --system -e ".[db,api,lambda]"
       - run: python scripts/build_lambda.py
