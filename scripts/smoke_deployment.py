@@ -12,7 +12,7 @@ refusing to invent a citation, so those are checked as carefully as the happy
 path.
 
     python scripts/smoke_deployment.py https://xxxx.lambda-url.ap-south-1.on.aws
-    python scripts/smoke_deployment.py <url> --write        # also corrects, then reverts
+    python scripts/smoke_deployment.py <url> --write        # also corrects, and does not undo it
     python scripts/smoke_deployment.py <url> --rate-limit   # costs a minute
 """
 
@@ -160,10 +160,19 @@ def main() -> int:
             },
         )
         detail = body.get("detail", "")[:110] if isinstance(body, dict) else str(body)[:110]
-        r.add(PASS if status == 422 else FAIL, "refuses a contentless correction", detail)
+        if status == 403:
+            # api_corrections_enabled is off, which is the right default for a
+            # public URL that cannot verify who is claiming to be a maintainer.
+            r.add(PASS, "corrections are disabled on this deployment", detail)
+            corrections_open = False
+        else:
+            r.add(PASS if status == 422 else FAIL, "refuses a contentless correction", detail)
+            corrections_open = True
+    else:
+        corrections_open = False
 
     # --- a real correction, then put memory back ----------------------------
-    if args.write and session and turn:
+    if args.write and corrections_open and session and turn:
         status, body, secs = call(
             url,
             "/correct",
@@ -195,7 +204,7 @@ def main() -> int:
                 "the next answer reflects the correction",
                 after.get("answer", "")[:110] if isinstance(after, dict) else "",
             )
-            print("\n  NOTE: this wrote to memory. Revert with scripts/revert_correction.py")
+            print("\n  NOTE: this wrote to memory and there is no undo. Inspect /rules.")
         else:
             r.add(FAIL, f"correction returned {status}", str(body)[:200])
 
