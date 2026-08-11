@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 is the floor the project claims to support; 3.12 is what the
+        # Lambda package targets. Both are load-bearing, so both are tested.
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv pip install --system -e ".[db,api,aws,lambda,dev]"
+
+      - name: Lint
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Test
+        run: pytest -q
+
+      # The tests never touch a cluster, so an import error in a database or
+      # deployment module would pass CI and fail only on deploy. Importing every
+      # module catches that without needing credentials.
+      - name: Import every module
+        run: |
+          python - <<'PY'
+          import importlib, pkgutil, sys
+          import precedent
+
+          failed = []
+          for module in pkgutil.walk_packages(precedent.__path__, "precedent."):
+              try:
+                  importlib.import_module(module.name)
+              except Exception as exc:
+                  failed.append(f"{module.name}: {type(exc).__name__}: {exc}")
+
+          for line in failed:
+              print(line)
+          sys.exit(1 if failed else 0)
+          PY
+
+  package:
+    # Proves the deployment artefact still builds and stays inside Lambda's
+    # limits. It caught nothing yet; it exists so that a dependency growing past
+    # 250 MB is found here rather than during an upload the night before a
+    # deadline.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv pip install --system -e ".[db,api,lambda]"
+      - run: python scripts/build_lambda.py
+      - name: Check the package imports on the target platform
+        run: |
+          python - <<'PY'
+          import zipfile
+
+          names = zipfile.ZipFile("build/precedent-lambda.zip").namelist()
+          binaries = [n for n in names if n.endswith((".so", ".pyd"))]
+          windows = [n for n in binaries if n.endswith(".pyd")]
+
+          assert "precedent/api/lambda_handler.py" in names, "handler missing"
+          assert "precedent/api/static/index.html" in names, "page missing"
+          assert any(n.startswith("asyncpg/") for n in names), "asyncpg missing"
+          assert not windows, f"windows binaries in a linux package: {windows}"
+          print(f"{len(names)} files, {len(binaries)} compiled extensions, none for windows")
+          PY
