@@ -178,7 +178,11 @@ async def extract(
                 if len(records) >= limit:
                     stop = True
                     break
-                if cluster.seed_id in claimed:
+                # Overlap, not just the seed. Two seeds sitting inside one
+                # dense neighbourhood build clusters that share most of their
+                # comments, and checking only the seed sent both to the model:
+                # the same evidence, extracted and paid for twice.
+                if cluster.comment_ids & claimed:
                     continue
                 rejection = cluster.rejection_reason(min_distinct_prs=min_distinct_prs)
                 if rejection is not None:
