@@ -17,22 +17,35 @@ the answer is a plain 503 rather than a degraded answer from the base model.
 Falling back to unsourced generation when the money runs out would break the one
 guarantee this system makes.
 
-The counter lives in the database rather than in memory, and that is not
-over-engineering. The first version kept it on the model client, which is
-correct under uvicorn and useless under Lambda: Mangum runs the ASGI lifespan on
-every invocation, so the client and its counter were rebuilt per request and the
-ceiling restarted at zero each time. Even with that fixed, Lambda runs several
-execution environments at once and each would believe it had the whole budget.
-A ceiling that resets is not a ceiling.
+The counter lives in the database rather than in memory, and it took two
+attempts to make it a real ceiling.
+
+The first version kept it on the model client, which is correct under uvicorn
+and useless under Lambda: Mangum runs the ASGI lifespan on every invocation, so
+the client and its counter were rebuilt per request and the ceiling restarted at
+zero each time.
+
+Moving it into the database fixed that and still did not bind, because the
+sequence was read the total, call the model, add the cost. Two containers
+reading $0.90 against a $1.00 limit both pass and the day ends at $1.30.
+Measured, not theorised: ten concurrent requests all passed.
+
+So a request now **reserves** room for the most it could cost, in the same
+statement that checks there is any, and settles the reservation against the real
+cost afterwards. The same ten concurrent requests now yield one. A limit that
+can be exceeded is not a limit, and this file used to claim it was the durable
+guarantee while being none of those things.
 
 **A rate limit.** Same reason, faster failure mode. It is per client address and
 per process, so it shares the weakness the budget no longer has; it is a speed
 bump rather than a guarantee, and the durable budget is what actually bounds the
 damage.
 
-Corrections carry a separate switch. They write to memory, and a public demo
-that anyone can rewrite is a demo that will be rewritten, so
-`api_corrections_enabled` turns them off without a redeploy.
+Corrections through this API carry a switch that is **off by default**. There is
+no way here to verify that whoever put "jbrockmendel" in the maintainer field is
+jbrockmendel, and an endpoint that rewrites memory on an unverified name is a
+hole rather than a feature. The GitHub App path in `github_app.py` does not need
+the switch, because GitHub signs those deliveries and the identity is real.
 
     uvicorn precedent.api.app:app --reload
 """
@@ -42,6 +55,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -57,10 +71,21 @@ from precedent.agent.answer import answer_question, citation_label
 from precedent.agent.correct import UnusableCorrection, apply_correction
 from precedent.agent.retrieve import recall
 from precedent.agent.session import open_session, record_turn
+from precedent.api.github_app import (
+    AlreadyHandled,
+    SignatureInvalid,
+    extract_instruction,
+    parse_event,
+    speaks_for_project,
+    teach,
+    verify_signature,
+)
 from precedent.config import get_settings
 from precedent.db.engine import create_engine
+from precedent.db.retry import with_retry
 from precedent.embed.provider import OpenAIEmbeddings
 from precedent.extract.llm import BudgetExhausted, ChatClient, QuotaExhausted
+from precedent.transform.maintainers import load_maintainers
 
 log = logging.getLogger("precedent.api")
 
@@ -228,17 +253,91 @@ RECORD_SPEND = text("""
 """)
 
 
+# The most a single request is allowed to cost. It bounds the reservation, so
+# it has to be an over-estimate rather than an average: a correction makes up
+# to fourteen model calls, and reserving the cost of one would let fourteen
+# requests through on the budget for fourteen.
+MAX_REQUEST_USD = 0.05
+
+# A reservation this old belongs to a container that died before releasing it.
+# Without expiry those leaks would quietly eat the day's allowance.
+RESERVATION_TTL_SECONDS = 300
+
+# Outstanding reservations are counted from the table rather than cached in a
+# column on api_usage. The cached version needed a sweep to stay honest after a
+# container died mid-request, and a counter that needs a background job to stay
+# correct is a counter that will eventually be wrong. Summing live rows cannot
+# drift: an abandoned reservation simply ages out of the window.
+LIVE_RESERVED = """
+    coalesce((SELECT sum(amount_usd) FROM api_reservations
+              WHERE day = current_date() AND created_at > now() - INTERVAL '{ttl} seconds'), 0)
+"""
+
+SPENT_TODAY_SQL = "coalesce((SELECT spend_usd FROM api_usage WHERE day = current_date()), 0)"
+
+# The check and the claim are one statement. Reading the total and then
+# spending leaves a window where another container reads the same total, which
+# is how a $1.00 ceiling ends the day at $1.30. Under serializable isolation two
+# of these conflict and one retries, so the WHERE decides who gets the room.
+RESERVE = text(f"""
+    INSERT INTO api_reservations (id, day, amount_usd)
+    SELECT :id, current_date(), :amount
+    WHERE {SPENT_TODAY_SQL} + {LIVE_RESERVED.format(ttl=300)} + :amount <= :limit
+    RETURNING id
+""")
+
+SETTLE = text("""
+    INSERT INTO api_usage (day, calls, spend_usd)
+    VALUES (current_date(), 1, :spent)
+    ON CONFLICT (day) DO UPDATE SET
+        calls = api_usage.calls + 1,
+        spend_usd = api_usage.spend_usd + :spent,
+        updated_at = now()
+""")
+
+RELEASE_HOLD = text("DELETE FROM api_reservations WHERE id = :id")
+
+# Opportunistic, and safe to skip: the window in LIVE_RESERVED already excludes
+# these, so this only reclaims disk.
+SWEEP_STALE = text("DELETE FROM api_reservations WHERE created_at < now() - INTERVAL '300 seconds'")
+
+SPEND_SUMMARY = text(f"""
+    SELECT {SPENT_TODAY_SQL} AS spent, {LIVE_RESERVED.format(ttl=300)} AS reserved
+""")
+
+
 async def spend_today() -> float:
     async with deps.engine.connect() as conn:
         return float((await conn.execute(SPEND_TODAY)).scalar() or 0.0)
 
 
-async def check_budget() -> None:
-    """Refuse before spending, not after."""
+async def reserve_budget() -> str | None:
+    """Claim room for one request, or refuse.
+
+    Returns a reservation id to settle with, or None when the budget is
+    unlimited. Raises 503 when there is no room.
+
+    The claim and the check are the same statement on purpose. Reading the
+    total and then spending leaves a window in which another container reads
+    the same total, which is how a $1.00 ceiling ends the day at $1.30.
+    """
     limit = get_settings().api_budget_usd
     if limit <= 0:
-        return
-    if await spend_today() >= limit:
+        return None
+
+    reservation_id = str(uuid.uuid4())
+
+    async def op() -> bool:
+        async with deps.engine.begin() as conn:
+            taken = (
+                await conn.execute(
+                    RESERVE,
+                    {"id": reservation_id, "amount": MAX_REQUEST_USD, "limit": limit},
+                )
+            ).first()
+            return taken is not None
+
+    if not await with_retry(op, description="reserve budget"):
         raise HTTPException(
             status_code=503,
             detail=(
@@ -246,23 +345,33 @@ async def check_budget() -> None:
                 "readable at /rules, and questions work again tomorrow."
             ),
         )
+    return reservation_id
 
 
-async def record_spend(amount: float) -> None:
-    """Never allowed to fail the request it is accounting for.
+async def settle_budget(reservation_id: str | None, spent: float) -> None:
+    """Replace the reservation with what the request actually cost.
 
-    The answer has already been produced and the money already spent by the
-    time this runs. Losing the record understates the total, which is a problem
-    worth logging and not one worth turning into a 500 for someone who asked a
-    perfectly good question.
+    Never allowed to fail the request it is accounting for: the answer is
+    already produced and the money already gone. But it must not be skipped
+    either, or the reservation leaks until the sweep reclaims it, so failures
+    are logged loudly rather than swallowed quietly.
     """
-    if amount <= 0:
+    if reservation_id is None:
+        if spent > 0:
+            log.info("unlimited budget; %.4f spent and not recorded", spent)
         return
     try:
         async with deps.engine.begin() as conn:
-            await conn.execute(RECORD_SPEND, {"amount": amount})
+            await conn.execute(SETTLE, {"spent": max(0.0, spent)})
+            await conn.execute(RELEASE_HOLD, {"id": reservation_id})
+            await conn.execute(SWEEP_STALE)
     except Exception:
-        log.exception("could not record $%.4f of spend; the daily total is now low", amount)
+        log.exception(
+            "could not settle reservation %s for $%.4f; the sweep will reclaim it in %ds",
+            reservation_id,
+            spent,
+            RESERVATION_TTL_SECONDS,
+        )
 
 
 class AskRequest(BaseModel):
@@ -348,7 +457,7 @@ async def health() -> dict:
 async def ask(body: AskRequest, request: Request) -> AskResponse:
     require_ready()
     enforce_rate_limit(request)
-    await check_budget()
+    reservation = await reserve_budget()
 
     memory = await recall(deps.engine, deps.provider, repo_id=deps.repo_id, question=body.question)
 
@@ -365,8 +474,9 @@ async def ask(body: AskRequest, request: Request) -> AskResponse:
     except QuotaExhausted as exc:
         raise HTTPException(status_code=503, detail="The model account has no credit.") from exc
     finally:
-        # In `finally` because a call that raised may still have spent money.
-        await record_spend(deps.chat.spent - before)
+        # In `finally` because a call that raised may still have spent money,
+        # and because the reservation has to be released either way.
+        await settle_budget(reservation, deps.chat.spent - before)
 
     session_id = body.session_id or await open_session(
         deps.engine, repo_id=deps.repo_id, contributor_login=body.contributor
@@ -436,7 +546,7 @@ async def correct(body: CorrectRequest, request: Request) -> CorrectResponse:
     if not settings.api_corrections_enabled:
         raise HTTPException(status_code=403, detail="Corrections are disabled on this deployment.")
     enforce_rate_limit(request)
-    await check_budget()
+    reservation = await reserve_budget()
 
     before = deps.chat.spent
     try:
@@ -459,7 +569,7 @@ async def correct(body: CorrectRequest, request: Request) -> CorrectResponse:
     except BudgetExhausted as exc:
         raise HTTPException(status_code=503, detail="This demo's model budget is spent.") from exc
     finally:
-        await record_spend(deps.chat.spent - before)
+        await settle_budget(reservation, deps.chat.spent - before)
 
     return CorrectResponse(
         statement=result.statement,
@@ -538,6 +648,84 @@ async def rules(request: Request, limit: int = 20) -> dict:
             }
             for r in retired
         ],
+    }
+
+
+@app.post("/github/webhook")
+async def github_webhook(request: Request) -> dict:
+    """Learn from a maintainer's comment on a pull request.
+
+    Not rate limited by address: every delivery comes from GitHub's own hosts,
+    so a per-client limit would either be pointless or would throttle GitHub
+    itself. The signature is the gate, and the daily budget still applies.
+    """
+    settings = get_settings()
+    raw = await request.body()
+
+    try:
+        verify_signature(
+            settings.github_webhook_secret, raw, request.headers.get("X-Hub-Signature-256")
+        )
+    except SignatureInvalid as exc:
+        # 401 with no detail. Telling an unauthenticated caller *why* their
+        # signature failed helps them guess a valid one.
+        log.warning("rejected webhook delivery: %s", exc)
+        raise HTTPException(status_code=401, detail="invalid signature") from exc
+
+    event = request.headers.get("X-GitHub-Event", "")
+    parsed = parse_event(event, await request.json())
+    if parsed is None:
+        return {"status": "ignored", "reason": f"nothing to do for {event or 'unknown event'}"}
+
+    instruction = extract_instruction(parsed["body"], settings.github_trigger)
+    if not instruction:
+        return {"status": "ignored", "reason": "not addressed to the app"}
+
+    if not speaks_for_project(
+        parsed["association"], parsed["author"], load_maintainers(settings.repo_slug)
+    ):
+        # Answered 200, not 403. The sender is a real contributor who wrote a
+        # perfectly reasonable comment; there is nothing for them to fix, and a
+        # failure would only make GitHub retry a delivery we will keep refusing.
+        log.info(
+            "ignoring %s (%s), who does not speak for the project",
+            parsed["author"],
+            parsed["association"],
+        )
+        return {"status": "ignored", "reason": "author does not have write access"}
+
+    require_ready()
+    reservation = await reserve_budget()
+
+    before = deps.chat.spent
+    try:
+        learned = await teach(
+            deps.engine,
+            deps.provider,
+            deps.chat,
+            repo_id=deps.repo_id,
+            parsed=parsed,
+            instruction=instruction,
+        )
+    except AlreadyHandled:
+        # 200, because GitHub is right to have retried and there is nothing to
+        # fix. A failure here would only make it retry again.
+        return {"status": "ignored", "reason": "this comment was already learned from"}
+    except (BudgetExhausted, QuotaExhausted) as exc:
+        raise HTTPException(status_code=503, detail="model budget spent") from exc
+    finally:
+        await settle_budget(reservation, deps.chat.spent - before)
+
+    if learned is None:
+        return {"status": "ignored", "reason": "no convention stated"}
+
+    return {
+        "status": "learned",
+        "statement": learned.statement,
+        "outcome": learned.outcome,
+        "rule_id": learned.rule_id,
+        "author": learned.author,
+        "pr_number": learned.pr_number,
     }
 
 
