@@ -83,7 +83,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv pip install --system -e ".[db,api,lambda]"
       - run: python scripts/build_lambda.py
-      - name: Check the package imports on the target platform
+      - name: Check the package contents
         run: |
           python - <<'PY'
           import zipfile
@@ -95,6 +95,34 @@ jobs:
           assert "precedent/api/lambda_handler.py" in names, "handler missing"
           assert "precedent/api/static/index.html" in names, "page missing"
           assert any(n.startswith("asyncpg/") for n in names), "asyncpg missing"
+          # Read at runtime, not imported, so nothing else here would notice it
+          # was absent. Without it the maintainer list is empty in deployment
+          # and authorship checks silently fall back to authorAssociation.
+          assert "config/maintainers.yaml" in names, "maintainer list missing"
           assert not windows, f"windows binaries in a linux package: {windows}"
           print(f"{len(names)} files, {len(binaries)} compiled extensions, none for windows")
           PY
+
+      # Actually import the built artefact, rather than checking that files with
+      # the right names are present in it.
+      #
+      # A deployment failed on `No module named 'yaml'` that every other check
+      # here passed: the tests import from the source tree with the dev extras
+      # installed, so a dependency missing from the *package* is invisible to
+      # them. This runner is Linux on the same Python the package targets, so
+      # importing out of the unzipped directory is the same import Lambda does.
+      - name: Import the handler out of the package, as Lambda does
+        run: |
+          rm -rf /tmp/pkg && mkdir -p /tmp/pkg
+          unzip -q build/precedent-lambda.zip -d /tmp/pkg
+          cd /tmp/pkg
+          python -c "
+          import precedent.api.lambda_handler as h
+          from precedent.transform.maintainers import find_maintainer_list, load_maintainers
+          print('handler:', h.handler)
+          found = find_maintainer_list()
+          assert found.is_file(), f'maintainer list not found from the package layout: {found}'
+          logins = load_maintainers('pandas-dev/pandas')
+          assert logins, 'maintainer list loaded but empty'
+          print(f'maintainers: {len(logins)} from {found}')
+          "
