@@ -143,7 +143,9 @@ async def sample(engine, provider, repo_id: str, count: int, sensitivity: bool) 
         print(f"  #{row['pr_number']:<7} {len(paths):>3} files  {state}")
 
     spoke = [case for case in cases if case[3].will_speak]
-    print(f"\nspeaks on {len(spoke)} of {len(cases)} ({100 * len(spoke) / max(len(cases), 1):.0f}%)")
+    print(
+        f"\nspeaks on {len(spoke)} of {len(cases)} ({100 * len(spoke) / max(len(cases), 1):.0f}%)"
+    )
     if spoke:
         distances = [item.rule.distance for _, _, _, d in spoke for item in d.selected]
         print(
