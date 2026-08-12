@@ -55,7 +55,18 @@ RUNTIME_REQUIREMENTS = [
     # upload limit.
     "pyjwt>=2.8",
     "cryptography>=42",
+    # Reads config/maintainers.yaml. It looks like a development-only
+    # dependency and is not: the webhook path asks who speaks for the project on
+    # every delivery, and that answer comes out of a YAML file.
+    "pyyaml>=6.0",
 ]
+
+# Data the application reads at runtime rather than imports. Without this the
+# maintainer list is absent in deployment and `load_maintainers` returns an
+# empty set, which is not an error and produces no failure: authorship checks
+# quietly fall back to authorAssociation alone, which is the exact defect
+# scripts/derive_maintainers.py exists to correct.
+DATA_FILES = [Path("config") / "maintainers.yaml"]
 
 # Lambda's own runtime provides these, and a second copy is dead weight.
 PROVIDED_BY_RUNTIME = ("boto3", "botocore")
@@ -108,7 +119,7 @@ def install_dependencies(target: Path, python_version: str, architecture: str) -
 
 
 def copy_application(target: Path) -> None:
-    """Copy the package itself, including the static page the API serves."""
+    """Copy the package itself, the static page it serves, and the data it reads."""
     source = REPO_ROOT / "src" / "precedent"
     destination = target / "precedent"
     shutil.copytree(
@@ -117,6 +128,18 @@ def copy_application(target: Path) -> None:
         dirs_exist_ok=True,
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
     )
+
+    for relative in DATA_FILES:
+        origin = REPO_ROOT / relative
+        if not origin.is_file():
+            raise FileNotFoundError(
+                f"{relative} is missing. It is read at runtime, and shipping without it "
+                "degrades silently rather than failing."
+            )
+        copy = target / relative
+        copy.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(origin, copy)
+        log.info("packaged %s", relative.as_posix())
 
 
 def prune(target: Path) -> int:
