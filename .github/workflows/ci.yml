@@ -30,8 +30,11 @@ jobs:
         with:
           enable-cache: true
 
+      # Every extra, including `github`. The extras exist so a deployment can
+      # carry only what it uses; CI is the one place that has to install all of
+      # them, because the test suite covers all of them.
       - name: Install
-        run: uv pip install --system -e ".[db,api,aws,lambda,dev]"
+        run: uv pip install --system -e ".[db,api,aws,lambda,github,dev]"
 
       - name: Confirm the interpreter is the one the matrix asked for
         run: python -c "import sys; print(sys.version); assert sys.version.startswith('${{ matrix.python-version }}')"
