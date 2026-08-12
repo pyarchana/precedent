@@ -51,6 +51,7 @@ from datetime import UTC, datetime
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from precedent.agent.review import ReviewDecision, review
 from precedent.db.retry import with_retry
 from precedent.embed.provider import EmbeddingProvider
 from precedent.embed.vector import encode
@@ -63,6 +64,32 @@ log = logging.getLogger(__name__)
 
 # Events worth reading. Everything else GitHub sends is noise for this purpose.
 HANDLED_EVENTS = frozenset({"issue_comment", "pull_request_review_comment"})
+
+# Pull request actions worth acting on, unprompted. Deliberately not
+# `synchronize`, which fires on every push: a contributor who force-pushes four
+# times would collect four identical comments, and nothing the agent has to say
+# changes between them. `reopened` is excluded for the same reason, since the
+# comment from the first opening is still on the thread.
+REVIEWED_ACTIONS = frozenset({"opened", "ready_for_review"})
+
+CLAIM_REVIEW = text("""
+    INSERT INTO pr_reviews (repo_id, source_repo, pr_number)
+    VALUES (:repo_id, :source_repo, :pr_number)
+    ON CONFLICT (repo_id, source_repo, pr_number) DO NOTHING
+    RETURNING pr_number
+""")
+
+RELEASE_REVIEW = text("""
+    DELETE FROM pr_reviews
+    WHERE repo_id = :repo_id AND source_repo = :source_repo AND pr_number = :pr_number
+      AND comment_url IS NULL AND silent_reason IS NULL
+""")
+
+RECORD_REVIEW = text("""
+    UPDATE pr_reviews
+    SET rule_ids = :rule_ids, comment_url = :comment_url, silent_reason = :silent_reason
+    WHERE repo_id = :repo_id AND source_repo = :source_repo AND pr_number = :pr_number
+""")
 
 STORE_COMMENT = text("""
     INSERT INTO review_comments (
@@ -320,3 +347,151 @@ async def teach(
         author=parsed["author"],
         pr_number=parsed["pr_number"],
     )
+
+
+# ---------------------------------------------------------------------------
+# Acting on a pull request, rather than being taught by one
+# ---------------------------------------------------------------------------
+
+
+def parse_pull_request(event: str, payload: dict) -> dict | None:
+    """Flatten a pull_request event, or None when there is nothing to act on."""
+    if event != "pull_request" or payload.get("action") not in REVIEWED_ACTIONS:
+        return None
+
+    pull = payload.get("pull_request") or {}
+    number = pull.get("number")
+    repo = (payload.get("repository") or {}).get("full_name")
+    if number is None or not repo:
+        return None
+
+    # A draft is explicitly unfinished. Commenting on one is interrupting
+    # somebody mid-sentence, and `ready_for_review` will bring it back here.
+    if pull.get("draft") and payload.get("action") == "opened":
+        return None
+
+    return {
+        "repo": repo,
+        "pr_number": number,
+        "title": pull.get("title") or "",
+        "author": (pull.get("user") or {}).get("login"),
+        "action": payload.get("action"),
+    }
+
+
+async def _claim(engine: AsyncEngine, *, repo_id: str, repo: str, pr_number: int) -> bool:
+    """Take the right to comment on this pull request, or find it already taken.
+
+    Claimed before the work rather than after, because the two ways this can go
+    wrong are not equally bad. Claiming first can lose a comment if the process
+    dies mid-review, and the maintainer can ask for it again. Claiming last
+    would let a redelivered webhook post the same three conventions twice on
+    somebody's first contribution, and nothing takes that back.
+    """
+
+    async def op() -> bool:
+        async with engine.begin() as conn:
+            row = await conn.execute(
+                CLAIM_REVIEW,
+                {"repo_id": repo_id, "source_repo": repo, "pr_number": pr_number},
+            )
+            return row.scalar_one_or_none() is not None
+
+    return await with_retry(op, description="claim pull request review")
+
+
+async def _release(engine: AsyncEngine, *, repo_id: str, repo: str, pr_number: int) -> None:
+    """Give the claim back after a failure, so a retry is not locked out.
+
+    Only removes a claim that never reached a decision. The WHERE clause is what
+    makes that safe: once a comment or a silence has been recorded, this cannot
+    touch it.
+    """
+
+    async def op() -> None:
+        async with engine.begin() as conn:
+            await conn.execute(
+                RELEASE_REVIEW,
+                {"repo_id": repo_id, "source_repo": repo, "pr_number": pr_number},
+            )
+
+    await with_retry(op, description="release pull request claim")
+
+
+async def _record(
+    engine: AsyncEngine,
+    *,
+    repo_id: str,
+    repo: str,
+    pr_number: int,
+    rule_ids: list[str],
+    comment_url: str | None,
+    silent_reason: str | None,
+) -> None:
+    async def op() -> None:
+        async with engine.begin() as conn:
+            await conn.execute(
+                RECORD_REVIEW,
+                {
+                    "repo_id": repo_id,
+                    "source_repo": repo,
+                    "pr_number": pr_number,
+                    "rule_ids": rule_ids,
+                    "comment_url": comment_url,
+                    "silent_reason": silent_reason,
+                },
+            )
+
+    await with_retry(op, description="record pull request review")
+
+
+async def act_on_pull_request(
+    engine: AsyncEngine,
+    provider: EmbeddingProvider,
+    github,
+    *,
+    repo_id: str,
+    parsed: dict,
+    trigger: str,
+) -> ReviewDecision:
+    """Read a pull request nobody addressed, and decide whether to say anything.
+
+    The whole of this path runs on its own initiative. Nothing here was asked
+    for, which is why every step that could produce noise has a way of ending in
+    silence: no claim, no matching rules, or no confident enough match.
+    """
+    repo = parsed["repo"]
+    pr_number = parsed["pr_number"]
+
+    if not await _claim(engine, repo_id=repo_id, repo=repo, pr_number=pr_number):
+        raise AlreadyHandled(f"{repo}#{pr_number}")
+
+    try:
+        paths = await github.changed_files(repo, pr_number)
+        decision = await review(
+            engine,
+            provider,
+            repo_id=repo_id,
+            pr_number=pr_number,
+            title=parsed.get("title"),
+            paths=paths,
+            trigger=trigger,
+        )
+    except Exception:
+        await _release(engine, repo_id=repo_id, repo=repo, pr_number=pr_number)
+        raise
+
+    comment_url: str | None = None
+    if decision.will_speak:
+        comment_url = await github.comment(repo, pr_number, decision.body)
+
+    await _record(
+        engine,
+        repo_id=repo_id,
+        repo=repo,
+        pr_number=pr_number,
+        rule_ids=[item.rule.id for item in decision.selected],
+        comment_url=comment_url,
+        silent_reason=decision.silent_reason,
+    )
+    return decision
