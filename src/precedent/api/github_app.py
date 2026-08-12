@@ -453,6 +453,7 @@ async def act_on_pull_request(
     repo_id: str,
     parsed: dict,
     trigger: str,
+    source_repo: str,
 ) -> ReviewDecision:
     """Read a pull request nobody addressed, and decide whether to say anything.
 
@@ -476,6 +477,7 @@ async def act_on_pull_request(
             title=parsed.get("title"),
             paths=paths,
             trigger=trigger,
+            source_repo=source_repo,
         )
     except Exception:
         await _release(engine, repo_id=repo_id, repo=repo, pr_number=pr_number)

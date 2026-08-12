@@ -305,7 +305,31 @@ class TestRendering:
                 rule=rule(citations=[hit(1234, "https://github.com/x/y/pull/1234")]), reason="r"
             )
         ]
-        assert "[#1234](https://github.com/x/y/pull/1234)" in render(selected, "@precedent")
+        body = render(selected, "@precedent", "pandas-dev/pandas")
+        assert "[pandas-dev/pandas#1234](https://github.com/x/y/pull/1234)" in body
+
+    def test_the_first_citation_names_the_repository_it_came_from(self):
+        # A bare `#1234` renders as a reference into the repository being
+        # commented on, which is the wrong project entirely: the conventions
+        # come from pandas and the pull request almost never does. On a repo
+        # with one open pull request, `#64119` reads as a broken link rather
+        # than as fifteen years of somebody else's review history.
+        selected = [Applicable(rule=rule(citations=[hit(7, "u"), hit(8, "u")]), reason="r")]
+        body = render(selected, "@precedent", "pandas-dev/pandas")
+        assert "pandas-dev/pandas#7" in body
+        # Named once per rule, not on every link.
+        assert body.count("pandas-dev/pandas#") == 1
+        assert "#8" in body
+
+    def test_the_reason_is_shown_not_just_computed(self):
+        # The reason is what makes the comment arguable: a contributor can hold
+        # it against their own diff. Computing it and then not printing it threw
+        # away the only checkable part.
+        body = render(
+            [Applicable(rule=rule(), reason="it changes doc/source/whatsnew/v3.0.0.rst")],
+            "@precedent",
+        )
+        assert "doc/source/whatsnew/v3.0.0.rst" in body
 
     def test_a_citation_without_a_url_is_still_named_not_invented(self):
         body = render([Applicable(rule=rule(citations=[hit(99, None)]), reason="r")], "@precedent")

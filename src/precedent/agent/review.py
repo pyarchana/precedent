@@ -346,8 +346,16 @@ def select(rules: list[RetrievedRule], paths: list[str], touched: Touched) -> li
     return candidates[:MAX_RULES]
 
 
-def _citations(rule: RetrievedRule) -> str:
-    """Links to where the convention was established, deduplicated by pull request."""
+def _citations(rule: RetrievedRule, source_repo: str) -> str:
+    """Links to where the convention was established, deduplicated by pull request.
+
+    The first link names the repository the memory is drawn from, the rest do
+    not. Bare `#64119` renders as a reference to *the repository being commented
+    on*, which is the wrong project: the conventions come from pandas, and the
+    pull request being commented on almost never does. Naming the source once
+    per rule is what makes the provenance readable without repeating it three
+    times a line.
+    """
     seen: dict[int, str | None] = {}
     for hit in rule.citations:
         seen.setdefault(hit.pr_number, hit.url)
@@ -357,12 +365,15 @@ def _citations(rule: RetrievedRule) -> str:
     if not seen:
         return ""
 
-    links = [f"[#{number}]({url})" if url else f"#{number}" for number, url in seen.items()]
-    established = " and ".join(links)
-    return f"  \n  Established in {established}."
+    links = []
+    for position, (number, url) in enumerate(seen.items()):
+        label = f"{source_repo}#{number}" if position == 0 else f"#{number}"
+        links.append(f"[{label}]({url})" if url else label)
+
+    return f"  \n  Established in {' and '.join(links)}."
 
 
-def render(selected: list[Applicable], trigger: str) -> str:
+def render(selected: list[Applicable], trigger: str, source_repo: str = "pandas-dev/pandas") -> str:
     """The comment itself.
 
     Not written by a model. The statements were already distilled by one and
@@ -370,13 +381,17 @@ def render(selected: list[Applicable], trigger: str) -> str:
     second chance to invent something between the evidence and the contributor,
     in exchange for nicer sentences. The one thing this comment has going for it
     is that every claim in it is checkable.
+
+    Which is why each rule states the file that raised it. The contributor can
+    hold that against their own diff and disagree, and a convention nobody can
+    argue with is not a convention, it is an assertion.
     """
     count = {1: "one convention", 2: "two conventions", 3: "three conventions"}.get(
         len(selected), f"{len(selected)} conventions"
     )
 
     lines = [
-        "**From this project's review history**",
+        f"**From {source_repo} review history**",
         "",
         (
             f"Nobody asked me. I read the files this pull request changes and found {count} "
@@ -387,7 +402,8 @@ def render(selected: list[Applicable], trigger: str) -> str:
 
     for item in selected:
         rule = item.rule
-        lines.append(f"- **{rule.statement.rstrip('.')}.**{_citations(rule)}")
+        lines.append(f"- **{rule.statement.rstrip('.')}.**{_citations(rule, source_repo)}")
+        lines.append(f"  \n  Raised because {item.reason}.")
         if rule.rationale:
             lines.append(f"  \n  {rule.rationale.rstrip('.')}.")
 
@@ -540,6 +556,10 @@ async def review(
     title: str | None,
     paths: list[str],
     trigger: str = "@precedent",
+    # The repository the *memory* is drawn from, which is not the repository the
+    # pull request is in. Naming it is what stops a citation reading as a
+    # reference into whatever repo the app happens to be installed on.
+    source_repo: str = "pandas-dev/pandas",
 ) -> ReviewDecision:
     """Decide what, if anything, to say about a pull request."""
     decision = ReviewDecision(pr_number=pr_number, paths=paths)
@@ -562,7 +582,7 @@ async def review(
         return decision
 
     await attach_citations(engine, repo_id=repo_id, selected=decision.selected)
-    decision.body = render(decision.selected, trigger)
+    decision.body = render(decision.selected, trigger, source_repo)
     log.info(
         "#%s: %d of %d rules apply (%s)",
         pr_number,
