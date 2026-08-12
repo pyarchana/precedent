@@ -74,6 +74,7 @@ from precedent.agent.session import open_session, record_turn
 from precedent.api.github_app import (
     AlreadyHandled,
     SignatureInvalid,
+    acknowledge,
     act_on_pull_request,
     extract_instruction,
     parse_event,
@@ -806,6 +807,23 @@ async def github_webhook(request: Request) -> dict:
     if learned is None:
         return {"status": "ignored", "reason": "no convention stated"}
 
+    # Say so on the pull request. Writing to memory and answering 200 to GitHub
+    # is invisible to the person who taught it, who is then asked to trust that
+    # something happened.
+    #
+    # Deliberately after the rule is written and deliberately unable to fail the
+    # request. The teaching is the durable part; the acknowledgement is a
+    # courtesy, and losing it must not cost the rule or make GitHub retry a
+    # delivery that already succeeded.
+    posted = None
+    if deps.github is not None and parsed.get("repo"):
+        try:
+            posted = await deps.github.comment(
+                parsed["repo"], learned.pr_number, acknowledge(learned)
+            )
+        except GitHubError as exc:
+            log.error("learned from %s but could not reply: %s", learned.author, exc)
+
     return {
         "status": "learned",
         "statement": learned.statement,
@@ -813,6 +831,7 @@ async def github_webhook(request: Request) -> dict:
         "rule_id": learned.rule_id,
         "author": learned.author,
         "pr_number": learned.pr_number,
+        "comment_url": posted,
     }
 
 

@@ -85,6 +85,10 @@ RELEASE_REVIEW = text("""
       AND comment_url IS NULL AND silent_reason IS NULL
 """)
 
+RETIRED_STATEMENT = text("""
+    SELECT statement FROM rules WHERE repo_id = :repo_id AND id = :rule_id
+""")
+
 RECORD_REVIEW = text("""
     UPDATE pr_reviews
     SET rule_ids = :rule_ids, comment_url = :comment_url, silent_reason = :silent_reason
@@ -193,6 +197,9 @@ def parse_event(event: str, payload: dict) -> dict | None:
         return None
 
     return {
+        # Where to reply. The pull request is not in the repository the memory
+        # is about, so this cannot be taken from settings.
+        "repo": (payload.get("repository") or {}).get("full_name"),
         "node_id": comment.get("node_id") or f"gh:{comment.get('id')}",
         "body": comment.get("body") or "",
         "author": ((comment.get("user") or {}).get("login")),
@@ -332,6 +339,20 @@ async def teach(
         origin="taught",
     )
 
+    # What this replaced, so the acknowledgement can name it. Supersession is
+    # the outcome a maintainer most needs to see: it means their sentence
+    # retired something the project used to hold, and saying which is the
+    # difference between a receipt and a claim.
+    retired: str | None = None
+    if result.outcome == "superseded" and result.superseded_rule_id:
+        async with engine.connect() as conn:
+            retired = (
+                await conn.execute(
+                    RETIRED_STATEMENT,
+                    {"repo_id": repo_id, "rule_id": result.superseded_rule_id},
+                )
+            ).scalar_one_or_none()
+
     log.info(
         "learned from %s on #%s (%s): %s",
         parsed["author"],
@@ -346,7 +367,52 @@ async def teach(
         comment_id=comment_id,
         author=parsed["author"],
         pr_number=parsed["pr_number"],
+        superseded_statement=retired,
     )
+
+
+def acknowledge(learned: TaughtRule) -> str:
+    """Say back what was recorded, and what it cost.
+
+    The teaching path wrote to memory and returned 200 to GitHub, which nobody
+    can see. A maintainer typed a correction, got silence, and had no way to
+    tell whether it had worked, which is the same problem as an unverifiable
+    citation pointed the other way: they are being asked to trust an invisible
+    outcome.
+
+    So the acknowledgement states the rule as stored rather than thanking them
+    for it. A maintainer who reads it back and disagrees with the wording can
+    correct the correction, which is only possible if the wording is shown.
+    """
+    body = [
+        f"Recorded, from {learned.author}.",
+        "",
+        f"> {learned.statement}",
+        "",
+    ]
+
+    if learned.outcome == "superseded" and learned.superseded_statement:
+        body.append(
+            f"This contradicts what I held before, so that rule is retired: "
+            f"_{learned.superseded_statement.rstrip('.')}._"
+        )
+    elif learned.outcome == "merged":
+        body.append(
+            "I already held this. Your statement is added as further evidence "
+            "rather than as a duplicate rule."
+        )
+    else:
+        body.append("Nothing was retired; the project had not settled this before.")
+
+    body += [
+        "",
+        (
+            "Answers from here on cite this, attributed to you rather than inferred "
+            "from a pattern. If the wording is wrong, say it again and I will hold "
+            "the newer one."
+        ),
+    ]
+    return "\n".join(body)
 
 
 # ---------------------------------------------------------------------------

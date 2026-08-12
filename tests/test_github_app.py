@@ -20,6 +20,8 @@ import pytest
 
 from precedent.api.github_app import (
     SignatureInvalid,
+    TaughtRule,
+    acknowledge,
     extract_instruction,
     parse_event,
     parse_pull_request,
@@ -233,3 +235,76 @@ class TestActingUnprompted:
         payload = self.payload()
         del payload["pull_request"]["number"]
         assert parse_pull_request("pull_request", payload) is None
+
+
+class TestAcknowledging:
+    """Writing to memory and answering 200 to GitHub is invisible.
+
+    A maintainer typed a correction, got silence, and had no way to tell
+    whether it worked. That is the same problem as an unverifiable citation
+    pointed the other way: they are asked to trust an outcome they cannot see.
+    """
+
+    @staticmethod
+    def taught(outcome="inserted", superseded=None):
+        return TaughtRule(
+            statement="Place whatsnew entries in the file for the next release.",
+            rule_id="r1",
+            outcome=outcome,
+            comment_id="c1",
+            author="pyarchana",
+            pr_number=2,
+            superseded_statement=superseded,
+        )
+
+    def test_it_quotes_the_rule_as_stored(self):
+        # Not a thank you. A maintainer who reads the wording back and
+        # disagrees can correct the correction, which needs the wording shown.
+        body = acknowledge(self.taught())
+        assert "> Place whatsnew entries in the file for the next release." in body
+
+    def test_it_credits_the_person_who_said_it(self):
+        assert "pyarchana" in acknowledge(self.taught())
+
+    def test_a_new_rule_says_nothing_was_retired(self):
+        assert "Nothing was retired" in acknowledge(self.taught())
+
+    def test_supersession_names_what_it_replaced(self):
+        body = acknowledge(
+            self.taught("superseded", "Put the whatsnew note in the current release file.")
+        )
+        assert "retired" in body
+        assert "current release file" in body
+
+    def test_a_merge_does_not_claim_to_have_retired_anything(self):
+        body = acknowledge(self.taught("merged"))
+        assert "already held" in body.lower()
+        assert "retired" not in body
+
+    def test_supersession_without_the_old_text_does_not_invent_it(self):
+        # The lookup can come back empty if the rule was deleted between the
+        # write and the read. Better to say less than to describe a rule that
+        # cannot be quoted.
+        body = acknowledge(self.taught("superseded", None))
+        assert "Nothing was retired" in body
+
+
+class TestTheReplyAddress:
+    def test_the_repository_is_carried_so_a_reply_has_somewhere_to_go(self):
+        # The pull request is not in the repository the memory is about, so
+        # this cannot be taken from settings.
+        payload = {
+            "action": "created",
+            "repository": {"full_name": "pyarchana/precedent"},
+            "issue": {
+                "number": 2,
+                "pull_request": {"url": "https://api.github.com/repos/pyarchana/precedent/pulls/2"},
+            },
+            "comment": {
+                "node_id": "IC_1",
+                "body": "@precedent do X",
+                "user": {"login": "pyarchana"},
+                "author_association": "OWNER",
+            },
+        }
+        assert parse_event("issue_comment", payload)["repo"] == "pyarchana/precedent"
