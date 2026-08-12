@@ -691,6 +691,7 @@ async def review_pull_request(settings, opened: dict) -> dict:
             repo_id=deps.repo_id,
             parsed=opened,
             trigger=settings.github_trigger,
+            source_repo=settings.repo_slug,
         )
     except AlreadyHandled:
         return {"status": "ignored", "reason": "already reviewed this pull request"}
