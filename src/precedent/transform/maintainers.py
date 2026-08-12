@@ -24,12 +24,32 @@ from precedent.config import REPO_ROOT
 
 log = logging.getLogger(__name__)
 
-DEFAULT_PATH = REPO_ROOT / "config" / "maintainers.yaml"
+# Two layouts, because the file is read in both and they nest differently.
+#
+# In a checkout the package sits at `src/precedent/`, so the repository root is
+# two levels above it and the list is at `<root>/config/maintainers.yaml`.
+#
+# In the Lambda package there is no `src/`: the package is unpacked directly
+# into `/var/task/precedent/`, and `REPO_ROOT`, computed as `parents[2]` of
+# `config.py`, resolves to `/`. So the deployed list is looked for beside the
+# package instead. Getting this wrong does not raise; it returns an empty set
+# and quietly drops every maintainer who has left the project.
+PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+
+CANDIDATE_PATHS = (
+    REPO_ROOT / "config" / "maintainers.yaml",
+    PACKAGE_ROOT.parent / "config" / "maintainers.yaml",
+)
+
+
+def find_maintainer_list() -> Path:
+    """The first candidate that exists, or the checkout path for the error message."""
+    return next((p for p in CANDIDATE_PATHS if p.is_file()), CANDIDATE_PATHS[0])
 
 
 def load_maintainers(repo_slug: str, path: Path | None = None) -> frozenset[str]:
     """Lowercased logins to treat as maintainers regardless of association."""
-    path = path or DEFAULT_PATH
+    path = path or find_maintainer_list()
     if not path.is_file():
         log.warning(
             "no maintainer list at %s; falling back to authorAssociation alone, "
