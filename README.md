@@ -1,6 +1,9 @@
 <div align="center">
 
-# Precedent
+<h1>
+  <img src="assets/precedent.gif" height="30" alt="" valign="middle">
+  Precedent
+</h1>
 
 ### Agentic memory for open source maintainers, so a convention only has to be explained once
 
