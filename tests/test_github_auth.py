@@ -91,9 +91,7 @@ class TestReadingCredentials:
 
     def test_nothing_configured_names_every_missing_variable(self):
         with pytest.raises(NotConfigured) as exc:
-            Credentials.from_settings(
-                FakeSettings(github_app_id="", github_installation_id="")
-            )
+            Credentials.from_settings(FakeSettings(github_app_id="", github_installation_id=""))
         message = str(exc.value)
         assert "GITHUB_APP_ID" in message
         assert "GITHUB_INSTALLATION_ID" in message
@@ -235,9 +233,7 @@ class TestReadingAPullRequest:
         assert await app.changed_files("o/r", 7) == ["pandas/core/frame.py", "doc/source/x.rst"]
 
     async def test_a_pull_request_larger_than_one_page_is_followed(self, keypair):
-        recorder = Recorder(
-            files_pages=[[f"file_{i}.py" for i in range(100)], ["last.py"]]
-        )
+        recorder = Recorder(files_pages=[[f"file_{i}.py" for i in range(100)], ["last.py"]])
         app = build(recorder, keypair)
         paths = await app.changed_files("o/r", 7)
         assert len(paths) == 101

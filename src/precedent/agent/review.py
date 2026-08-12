@@ -556,8 +556,7 @@ async def review(
 
     if not decision.selected:
         decision.silent_reason = (
-            f"nothing applies: {len(decision.considered)} anchored rules, "
-            "none matching these paths"
+            f"nothing applies: {len(decision.considered)} anchored rules, none matching these paths"
         )
         log.info("#%s: staying quiet, %s", pr_number, decision.silent_reason)
         return decision

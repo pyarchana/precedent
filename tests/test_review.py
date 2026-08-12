@@ -313,7 +313,9 @@ class TestRendering:
         assert "](" not in body.split("Established in")[1].split("\n")[0]
 
     def test_the_same_pull_request_is_not_cited_twice(self):
-        selected = [Applicable(rule=rule(citations=[hit(7, "u"), hit(7, "u"), hit(8, "u")]), reason="r")]
+        selected = [
+            Applicable(rule=rule(citations=[hit(7, "u"), hit(7, "u"), hit(8, "u")]), reason="r")
+        ]
         assert render(selected, "@precedent").count("#7") == 1
 
     def test_a_rule_with_no_evidence_rows_claims_no_source(self):
