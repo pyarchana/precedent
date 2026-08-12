@@ -50,6 +50,11 @@ RUNTIME_REQUIREMENTS = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
     "python-dotenv>=1.0",
+    # GitHub App authentication. cryptography is the only compiled wheel here,
+    # so it is the one to look at first if the package outgrows the 50MB direct
+    # upload limit.
+    "pyjwt>=2.8",
+    "cryptography>=42",
 ]
 
 # Lambda's own runtime provides these, and a second copy is dead weight.

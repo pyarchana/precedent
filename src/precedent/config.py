@@ -55,6 +55,19 @@ class Settings(BaseSettings):
     # be attributed to a real person without any login at all.
     github_webhook_secret: str = ""
     github_trigger: str = "@precedent"
+    # Acting on a pull request, rather than only being taught by one, needs the
+    # app to authenticate as itself. RS256 over a private key, exchanged for a
+    # short-lived installation token. The key is a PEM, which is multi-line, and
+    # a multi-line environment variable survives neither the Lambda console nor
+    # a .env file reliably, so it is accepted base64 encoded as well.
+    github_app_id: str = ""
+    github_private_key: str = ""
+    github_private_key_b64: str = ""
+    github_installation_id: str = ""
+    # Off unless all four of the above are present. A half-configured app that
+    # tries to post and fails on every pull request is worse than one that
+    # quietly does not post.
+    github_reviews_enabled: bool = True
     # 1536 dimensions, matching the VECTOR columns in migration 0001. Changing
     # the model to one with a different width means rewriting those columns.
     embedding_model: str = "text-embedding-3-small"
