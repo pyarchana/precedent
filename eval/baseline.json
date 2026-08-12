@@ -1,0 +1,783 @@
+{
+  "generated_at": "2026-08-12T14:54:40.172134+00:00",
+  "repo": "pandas-dev/pandas",
+  "spend_usd": 0.0136,
+  "summary": {
+    "precedent": {
+      "correct": 8,
+      "partial": 9,
+      "answerable_total": 24,
+      "refused_when_should": 4,
+      "unanswerable_total": 5,
+      "citations": 43,
+      "citations_resolving": 43
+    },
+    "baseline": {
+      "correct": 9,
+      "partial": 11,
+      "answerable_total": 24,
+      "refused_when_should": 0,
+      "unanswerable_total": 5,
+      "citations": 24,
+      "citations_resolving": 0
+    }
+  },
+  "outcomes": [
+    {
+      "id": "whatsnew-required",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        64119
+      ],
+      "resolving": [
+        64119
+      ],
+      "text": "Yes, you need to add a whatsnew entry for any bug fixes, as it helps keep the documentation up to date and informs users of changes [PR #64119]."
+    },
+    {
+      "id": "whatsnew-required",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "Yes, you should add a 'whatsnew' note for your bug fix. This helps inform users about the changes made in the new release. The convention for adding 'whatsnew' notes was established in [PR #12345], which outlines the importance of documenting changes for transparency and user awareness."
+    },
+    {
+      "id": "whatsnew-which-functions",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        45532,
+        64119,
+        66141
+      ],
+      "resolving": [
+        45532,
+        64119,
+        66141
+      ],
+      "text": "You should mention user-facing changes, especially bug fixes and new features, in the 'whatsnew' entry. This includes any changes that will be part of a release, but do not reference private methods; focus on user-facing changes instead [PR #45532], [PR #64119], [PR #66141]."
+    },
+    {
+      "id": "whatsnew-which-functions",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "In a 'whatsnew' entry, you should mention any new public functions, methods, or classes that have been added to the pandas library. Additionally, if there are significant changes or improvements to existing functions, those should also be highlighted. It's important to focus on user-facing changes that will impact the functionality or usability of the library. For more detailed guidelines, you can refer to the conventions established in [PR #12345]."
+    },
+    {
+      "id": "whatsnew-regression-vs-bug",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        45532,
+        61399,
+        65682
+      ],
+      "resolving": [
+        45532,
+        61399,
+        65682
+      ],
+      "text": "Your whatsnew entry should go under bug fixes, as it is important to document bug fixes in the whatsnew section. Additionally, if the change is a regression, it should also be noted in the bug fixes section, as regressions are considered significant changes that need to be documented. [PR #61399], [PR #45532], [PR #65682]"
+    },
+    {
+      "id": "whatsnew-regression-vs-bug",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "Your 'whatsnew' entry should go under 'bug fixes' if you are fixing a bug that existed in a previous version. If your change addresses a regression, which is a bug that reappeared after being fixed in a prior release, it should go under 'regressions'. For more details on this convention, you can refer to [PR #12345]."
+    },
+    {
+      "id": "link-issue",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        64623
+      ],
+      "resolving": [
+        64623
+      ],
+      "text": "To make your pull request close the issue it fixes, include 'closes #xxxx' in the pull request description, where 'xxxx' is the issue number. This allows GitHub to automatically close the issue when the pull request is merged. [PR #64623]"
+    },
+    {
+      "id": "link-issue",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "To make your pull request automatically close the issue it fixes, you can include a specific keyword in your pull request description or commit message. The keywords include 'fixes', 'closes', or 'resolves' followed by the issue number. For example, you can write 'fixes #123' to close issue number 123 when the pull request is merged. This convention was established in [PR #12345]."
+    },
+    {
+      "id": "gh-number-in-test",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [],
+      "resolving": [],
+      "text": "You should add the GitHub issue number as a comment next to the specific assertion or test case that covers the issue in the format # GH#<issue number> [established by maintainer correction]."
+    },
+    {
+      "id": "gh-number-in-test",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "In the pandas project, when you add a new test that addresses a specific GitHub issue, you should include a comment at the top of the test file or function indicating the issue number. This helps maintain clarity about the purpose of the test. The convention is to use the format 'Related to issue #<issue_number>'. This practice was established in [PR #12345], where contributors were encouraged to link tests to their corresponding issues for better traceability."
+    },
+    {
+      "id": "test-required",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        61451
+      ],
+      "resolving": [
+        61451
+      ],
+      "text": "Yes, for every bug fix, a test that fails before the fix and passes after it is required, along with a corresponding entry in the whatsnew file [PR #61451]."
+    },
+    {
+      "id": "test-required",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "Yes, every bug fix should include a test to ensure that the issue is properly addressed and to prevent regressions in the future. This convention helps maintain the integrity of the codebase. You can refer to the guidelines established in [PR #12345] for more details on testing practices."
+    },
+    {
+      "id": "test-location",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        38756,
+        60952
+      ],
+      "resolving": [
+        38756,
+        60952
+      ],
+      "text": "You should place your new test in the appropriate test files based on their functionality and related issues, as this helps maintain organization and clarity in the test suite [PR #60952]. If your test covers shared functionality across different data structures, consider moving it to the appropriate generic test files [PR #38756]."
+    },
+    {
+      "id": "test-location",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "You should place your new test in the appropriate test module that corresponds to the functionality you are testing. Generally, tests for core functionality are located in the 'pandas/tests' directory, and you should follow the existing structure of tests. For example, if you are adding a test for a specific module, look for a test file that matches that module's name. If you are unsure, you can refer to the conventions established in [PR #12345] for guidance on organizing tests."
+    },
+    {
+      "id": "test-public-api",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        33229,
+        47674
+      ],
+      "resolving": [
+        33229,
+        47674
+      ],
+      "text": "You should avoid using internal functions and instead rely on the public API. The project considers everything in the pandas.core namespace as private API and discourages its use in public-facing code [PR #47674]. Additionally, it is emphasized that internal functions should only be used within the internals of the project [PR #33229]."
+    },
+    {
+      "id": "test-public-api",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "Tests should primarily use the public API of pandas rather than internal functions. This approach ensures that tests are more robust and reflect how users will interact with the library. Internal functions may change without notice, while the public API is intended to be stable. This convention was established in [PR #12345]."
+    },
+    {
+      "id": "pytest-raises-scope",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        57275,
+        61073
+      ],
+      "resolving": [
+        57275,
+        61073
+      ],
+      "text": "You should use pytest.raises as a context manager for testing exceptions in your tests. Additionally, use the match parameter to check the error message. This approach simplifies testing and ensures all relevant cases are covered. [PR #57275], [PR #61073]"
+    },
+    {
+      "id": "pytest-raises-scope",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "In the pandas project, the convention for structuring a `pytest.raises` block is to use it as a context manager. You should typically write it in the following format:\n\n```python\nwith pytest.raises(ExpectedException):\n    # code that is expected to raise the exception\n```\n\nThis structure helps in clearly indicating the scope of the code that is expected to raise the exception. For more details on testing conventions, you can refer to [PR #12345]."
+    },
+    {
+      "id": "pytest-raises-multiple",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        54575,
+        57275
+      ],
+      "resolving": [
+        54575,
+        57275
+      ],
+      "text": "The review history suggests that you should use separate pytest.raises blocks for each failing call. This is to ensure that if one call raises an exception, the subsequent calls are still tested. For example, it was noted that 'if they're both meant to raise, can we do this in two context managers please?' [PR #57275] and 'can you put pytest.raises around each of the bad calls below. otherwise when the first one raises, the second one doesnt get tested' [PR #54575]."
+    },
+    {
+      "id": "pytest-raises-multiple",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "No, you should not put several failing calls inside one `pytest.raises` block. Each `pytest.raises` context manager is intended to check for a single exception being raised by a specific block of code. If you have multiple calls that you expect to fail, you should use separate `pytest.raises` blocks for each call. This helps in clearly identifying which specific call is causing the failure. This convention was established in [PR #12345]."
+    },
+    {
+      "id": "minimize-diff",
+      "system": "precedent",
+      "answerable": true,
+      "answered": false,
+      "verdict": "no",
+      "cited": [],
+      "resolving": [],
+      "text": "The review history does not cover this"
+    },
+    {
+      "id": "minimize-diff",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "no",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "Yes, it is generally acceptable to tidy up nearby code while you are in the file, as long as your changes are related to the purpose of your pull request and do not introduce unrelated modifications. However, it's best to keep such changes minimal and focused to avoid making the review process more complicated. This practice aligns with the conventions established in the project, as seen in [PR #12345]."
+    },
+    {
+      "id": "run-linters",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        26826,
+        45219,
+        57311,
+        62645,
+        64040
+      ],
+      "resolving": [
+        26826,
+        45219,
+        57311,
+        62645,
+        64040
+      ],
+      "text": "To run code style checks locally, you should use 'pre-commit' to automatically check and fix style issues before committing. Additionally, run 'flake8' on your changes to ensure code style compliance and use the 'black' formatter for code formatting. This helps maintain code quality and consistency across the project. For more details, refer to the project's development documentation on pre-commit: https://pandas.pydata.org/docs/dev/development/contributing_codebase.html#pre-commit [PR #64040][PR #62645][PR #57311][PR #26826][PR #45219]."
+    },
+    {
+      "id": "run-linters",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "To run the code style checks locally for the pandas project, you can use the `pre-commit` framework. First, ensure you have `pre-commit` installed. You can do this by running `pip install pre-commit`. After that, you need to install the pre-commit hooks by running `pre-commit install` in the root directory of the pandas repository. Once set up, you can run the checks on all files with `pre-commit run --all-files`. This convention was established in [PR #12345]."
+    },
+    {
+      "id": "import-order",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        30024,
+        35163
+      ],
+      "resolving": [
+        30024,
+        35163
+      ],
+      "text": "You should run isort to sort your imports in Python files, following the order of standard library, third-party, and pandas modules, while maintaining alphabetical ordering within blocks. [PR #35163], [PR #30024]"
+    },
+    {
+      "id": "import-order",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "To fix the import order in your code, you should run the `black` formatter along with `isort`, which is used to sort imports. You can install these tools via pip if you haven't already: `pip install black isort`. After that, you can run `isort .` to sort the imports in your project directory, and `black .` to format the code according to the project's style guidelines. This convention was established in [PR #12345]."
+    },
+    {
+      "id": "backport",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        57957,
+        61606
+      ],
+      "resolving": [
+        57957,
+        61606
+      ],
+      "text": "Only critical bug fixes or those related to new features introduced in the previous version are backported to the current release branch. Non-critical changes are generally not backported [PR #57957], [PR #61606]."
+    },
+    {
+      "id": "backport",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "Backporting bug fixes to the current release branch is generally determined by the maintainers based on the severity of the bug and the impact of the fix. If the fix is critical and affects many users, it is more likely to be backported. You can refer to the discussion in [PR #12345] for more details on the backporting process."
+    },
+    {
+      "id": "benchmarks",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        61054,
+        61879
+      ],
+      "resolving": [
+        61054,
+        61879
+      ],
+      "text": "Yes, for any changes that might impact performance, you must run benchmarks in asv_bench or add one if it doesn't exist, and report the results to ensure no regressions are introduced [PR #61879], [PR #61054]."
+    },
+    {
+      "id": "benchmarks",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "Yes, you should run benchmarks for any performance-sensitive changes to ensure that your modifications do not negatively impact performance. It is important to provide benchmark results in your pull request to help maintain the performance standards of the project. This convention was established in [PR #12345]."
+    },
+    {
+      "id": "docstring-raises",
+      "system": "precedent",
+      "answerable": true,
+      "answered": false,
+      "verdict": "no",
+      "cited": [],
+      "resolving": [],
+      "text": "The review history does not cover this"
+    },
+    {
+      "id": "docstring-raises",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "In pandas, the 'Raises' section in a docstring should be placed after the 'Returns' section, if it exists. This convention helps maintain a clear structure in the documentation. You can refer to the specific guidelines established in [PR #12345] for more details."
+    },
+    {
+      "id": "docstring-class-returns",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "no",
+      "cited": [
+        28845
+      ],
+      "resolving": [
+        28845
+      ],
+      "text": "Yes, a class docstring should have a Returns section that specifies the return type without a period, followed by a description on the next line [PR #28845]."
+    },
+    {
+      "id": "docstring-class-returns",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "no",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "Yes, a class docstring should include a 'Returns' section if the class has a method that returns a value. This helps clarify what the user can expect when they call the method. For more details on docstring conventions, you can refer to [PR #12345]."
+    },
+    {
+      "id": "typing-imports",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "no",
+      "cited": [
+        51309,
+        53869,
+        62315
+      ],
+      "resolving": [
+        51309,
+        53869,
+        62315
+      ],
+      "text": "To import pandas types for annotations, you should define custom types in pandas/types/hinting.py and use explicit NumPy types like np.int64 or np.intp instead of the built-in int type. This practice helps improve type safety and consistency across the codebase. [PR #62315], [PR #51309], [PR #53869]"
+    },
+    {
+      "id": "typing-imports",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        29240
+      ],
+      "resolving": [],
+      "text": "For importing pandas types for annotations, you should use the following import statement: `from pandas import DataFrame, Series`. This convention was established to ensure clarity and consistency in type annotations across the codebase. You can refer to [PR #29240] for more details on this convention."
+    },
+    {
+      "id": "type-ignore",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        46942,
+        51817
+      ],
+      "resolving": [
+        46942,
+        51817
+      ],
+      "text": "Yes, it is acceptable to add a type ignore comment to silence mypy, especially when the issue is expected to be fixed in the future. It is recommended to include the mypy error message as a comment alongside the ignore to maintain visibility of type issues for future resolution [PR #46942], [PR #51817]."
+    },
+    {
+      "id": "type-ignore",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "Yes, it is acceptable to add a type ignore comment to silence mypy in cases where you believe the type checker is being overly strict or when you are unable to resolve a typing issue. However, it is recommended to use type ignore comments sparingly and only when necessary. This convention was discussed in [PR #12345], where the maintainers emphasized the importance of maintaining type safety while allowing for exceptions."
+    },
+    {
+      "id": "deprecation-message",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        21896
+      ],
+      "resolving": [
+        21896
+      ],
+      "text": "A deprecation message should include alternative methods for users to use instead of the deprecated feature, as indicated by the convention to add a docstring indicating deprecation and providing guidance on alternatives [PR #21896]."
+    },
+    {
+      "id": "deprecation-message",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "A deprecation message should inform users about the feature that is being deprecated, provide a clear explanation of why it is being deprecated, and suggest an alternative approach or feature that users should use instead. This helps users transition smoothly to the new functionality. For specific guidelines on deprecation messages, you can refer to [PR #12345]."
+    },
+    {
+      "id": "deprecation-warning-class",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        61995,
+        65819
+      ],
+      "resolving": [
+        61995,
+        65819
+      ],
+      "text": "Use DeprecationWarning for deprecations that are not expected to affect interactive users, and FutureWarning for others. This approach helps manage user expectations based on how they are likely to interact with the deprecated features. [PR #65819] [PR #61995]"
+    },
+    {
+      "id": "deprecation-warning-class",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "partial",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "A new deprecation should raise a `FutureWarning`. This convention was established to inform users that a feature will be removed or changed in a future version of the library. You can refer to the discussion in [PR #12345] for more details on this convention."
+    },
+    {
+      "id": "copy-on-write",
+      "system": "precedent",
+      "answerable": true,
+      "answered": false,
+      "verdict": "no",
+      "cited": [],
+      "resolving": [],
+      "text": "The review history does not cover this"
+    },
+    {
+      "id": "copy-on-write",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "no",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "Yes, you should handle the non Copy-on-Write code path in your contributions. The project aims to maintain compatibility and performance across different scenarios, including those that do not utilize Copy-on-Write. This was emphasized in discussions around the implementation of Copy-on-Write features in [PR #12345], where it was noted that both paths should be tested and maintained."
+    },
+    {
+      "id": "rebase-or-merge",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "no",
+      "cited": [
+        35907,
+        65268
+      ],
+      "resolving": [
+        35907,
+        65268
+      ],
+      "text": "You should prefer using merge over rebase when updating branches in pull requests, as it makes it easier to see what has changed and keeps track of reviews [PR #65268]. However, you should always merge the master branch into your feature branch before finalizing a pull request to ensure it is up to date with the latest changes [PR #35907]."
+    },
+    {
+      "id": "rebase-or-merge",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "yes",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "You should rebase your branch onto the main branch. This keeps the commit history cleaner and linear, which is preferred in the pandas project. The convention for rebasing was established in [PR #12345]."
+    },
+    {
+      "id": "private-underscore",
+      "system": "precedent",
+      "answerable": true,
+      "answered": true,
+      "verdict": "no",
+      "cited": [
+        57816
+      ],
+      "resolving": [
+        57816
+      ],
+      "text": "Internal type aliases should be prefixed with an underscore and follow Pascal case naming convention when they are not intended to be public, as this indicates they are implementation details and not part of the public API. [PR #57816]"
+    },
+    {
+      "id": "private-underscore",
+      "system": "baseline",
+      "answerable": true,
+      "answered": true,
+      "verdict": "no",
+      "cited": [
+        12345
+      ],
+      "resolving": [],
+      "text": "Yes, internal type aliases in pandas should be prefixed with an underscore to indicate that they are intended for internal use only. This convention helps to distinguish them from public types. This was established in [PR #12345]."
+    },
+    {
+      "id": "unanswerable-release-schedule",
+      "system": "precedent",
+      "answerable": false,
+      "answered": false,
+      "verdict": "no",
+      "cited": [],
+      "resolving": [],
+      "text": "The review history does not cover this."
+    },
+    {
+      "id": "unanswerable-release-schedule",
+      "system": "baseline",
+      "answerable": false,
+      "answered": true,
+      "verdict": "no",
+      "cited": [],
+      "resolving": [],
+      "text": "As of now, there is no official release date scheduled for pandas 5.0. The development and release timelines are typically discussed in the project's GitHub issues and pull requests, so it's best to keep an eye on those for any announcements regarding future versions."
+    },
+    {
+      "id": "unanswerable-other-repo",
+      "system": "precedent",
+      "answerable": false,
+      "answered": true,
+      "verdict": "no",
+      "cited": [
+        60069,
+        61143,
+        61157
+      ],
+      "resolving": [
+        60069,
+        61143,
+        61157
+      ],
+      "text": "The contribution process for NumPy includes always referring to the contribution guide when submitting a pull request to ensure proper contributions [PR #61157], [PR #61143], [PR #60069]."
+    },
+    {
+      "id": "unanswerable-other-repo",
+      "system": "baseline",
+      "answerable": false,
+      "answered": true,
+      "verdict": "no",
+      "cited": [],
+      "resolving": [],
+      "text": "The contribution process for NumPy is not directly related to the pandas project, but generally, it involves forking the repository, making your changes, and then submitting a pull request. You should also ensure that your code adheres to the project's coding standards and includes tests for any new features or bug fixes. For specific conventions and guidelines, you can refer to the NumPy contribution guide on their official repository. If you are looking for pandas-specific contribution processes, please let me know!"
+    },
+    {
+      "id": "unanswerable-governance",
+      "system": "precedent",
+      "answerable": false,
+      "answered": false,
+      "verdict": "no",
+      "cited": [],
+      "resolving": [],
+      "text": "The review history does not cover this."
+    },
+    {
+      "id": "unanswerable-governance",
+      "system": "baseline",
+      "answerable": false,
+      "answered": true,
+      "verdict": "no",
+      "cited": [],
+      "resolving": [],
+      "text": "The current pandas release manager is Joris Van den Bossche. You can find more information about the release management process and responsibilities in the project's documentation and discussions."
+    },
+    {
+      "id": "unanswerable-api-usage",
+      "system": "precedent",
+      "answerable": false,
+      "answered": false,
+      "verdict": "no",
+      "cited": [],
+      "resolving": [],
+      "text": "The review history does not cover this."
+    },
+    {
+      "id": "unanswerable-api-usage",
+      "system": "baseline",
+      "answerable": false,
+      "answered": true,
+      "verdict": "no",
+      "cited": [],
+      "resolving": [],
+      "text": "You can compute a rolling median in pandas using the `rolling()` method followed by the `median()` function. For example, if you have a DataFrame `df` and you want to compute the rolling median over a window of size 3 on a column named 'data', you would use: `df['data'].rolling(window=3).median()`. This approach is consistent with the conventions established in the project."
+    },
+    {
+      "id": "unanswerable-credentials",
+      "system": "precedent",
+      "answerable": false,
+      "answered": false,
+      "verdict": "no",
+      "cited": [],
+      "resolving": [],
+      "text": "The review history does not cover this"
+    },
+    {
+      "id": "unanswerable-credentials",
+      "system": "baseline",
+      "answerable": false,
+      "answered": true,
+      "verdict": "no",
+      "cited": [],
+      "resolving": [],
+      "text": "The CI credentials for the pandas build machines are not publicly disclosed for security reasons. If you need access to specific CI features or configurations, please reach out to the maintainers or check the project's documentation for guidance on contributing."
+    }
+  ]
+}
