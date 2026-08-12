@@ -30,6 +30,15 @@ api = [
 aws = [
     "boto3>=1.34",
 ]
+# Acting on a pull request, as opposed to being taught by one. GitHub App
+# authentication is RS256, so the signing libraries come with it. Kept separate
+# because listening needs none of this: the webhook secret alone is enough to
+# verify a delivery, and a deployment that only listens should not carry a
+# compiled crypto wheel to do it.
+github = [
+    "pyjwt>=2.8",
+    "cryptography>=42",
+]
 # Lambda runs the same ASGI app; Mangum is the only thing it needs that the
 # local server does not. Kept out of `api` so `uvicorn` and `mangum` are never
 # both dragged into a deployment that only wants one of them.
