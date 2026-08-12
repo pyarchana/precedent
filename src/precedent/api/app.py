@@ -74,12 +74,15 @@ from precedent.agent.session import open_session, record_turn
 from precedent.api.github_app import (
     AlreadyHandled,
     SignatureInvalid,
+    act_on_pull_request,
     extract_instruction,
     parse_event,
+    parse_pull_request,
     speaks_for_project,
     teach,
     verify_signature,
 )
+from precedent.api.github_auth import Credentials, GitHubApp, GitHubError, NotConfigured
 from precedent.config import get_settings
 from precedent.db.engine import create_engine
 from precedent.db.retry import with_retry
@@ -99,6 +102,11 @@ class Deps:
     provider: object = None
     chat: object = None
     repo_id: str = ""
+    # Only set when the GitHub App has credentials. Left None otherwise, and
+    # deliberately not a startup failure: listening to a repository needs the
+    # webhook secret alone, so a deployment that only learns should not be dead
+    # because it cannot also post.
+    github: object = None
     # Why startup failed, when it did. Kept so the function can say what is
     # wrong instead of returning an opaque 502 that requires CloudWatch to read.
     error: str = ""
@@ -151,6 +159,16 @@ async def ensure_deps() -> None:
             dimensions=settings.embedding_dim,
         )
         deps.chat = ChatClient(settings.openai_api_key, max_spend=settings.api_budget_usd)
+
+        if settings.github_reviews_enabled:
+            try:
+                deps.github = GitHubApp(Credentials.from_settings(settings))
+            except NotConfigured as exc:
+                # Not an error. The receive side works without any of this, and
+                # saying so at startup is more useful than discovering it on the
+                # first pull request.
+                log.info("acting on pull requests is off (%s)", exc)
+
         # Assigned last, so a partial failure leaves this None and the next
         # invocation retries rather than serving a half-built application.
         deps.engine = engine
@@ -651,6 +669,68 @@ async def rules(request: Request, limit: int = 20) -> dict:
     }
 
 
+async def review_pull_request(settings, opened: dict) -> dict:
+    """A pull request opened and nobody asked us anything.
+
+    Every response here is a 200, including the ones that do nothing. GitHub
+    retries a delivery that failed, and there is no failure it could retry its
+    way out of: the app is either configured to post or it is not, and the pull
+    request either has conventions attached to it or it does not.
+    """
+    if deps.github is None:
+        return {"status": "ignored", "reason": "the app has no credentials to post with"}
+
+    require_ready()
+    reservation = await reserve_budget()
+    before = deps.chat.spent
+    try:
+        decision = await act_on_pull_request(
+            deps.engine,
+            deps.provider,
+            deps.github,
+            repo_id=deps.repo_id,
+            parsed=opened,
+            trigger=settings.github_trigger,
+        )
+    except AlreadyHandled:
+        return {"status": "ignored", "reason": "already reviewed this pull request"}
+    except (BudgetExhausted, QuotaExhausted):
+        return {"status": "ignored", "reason": "model budget spent"}
+    except GitHubError as exc:
+        # Most often a permission the installation was never granted, which no
+        # retry fixes. Logged loudly because it is invisible from GitHub's side:
+        # the delivery succeeded, the comment simply never appeared.
+        log.error("could not act on %s#%s: %s", opened["repo"], opened["pr_number"], exc)
+        return {"status": "error", "reason": "github refused the request"}
+    finally:
+        await settle_budget(reservation, deps.chat.spent - before)
+
+    if not decision.will_speak:
+        return {
+            "status": "silent",
+            "reason": decision.silent_reason,
+            "pr_number": decision.pr_number,
+            "files_considered": len(decision.paths),
+        }
+
+    return {
+        "status": "commented",
+        "pr_number": decision.pr_number,
+        "files_considered": len(decision.paths),
+        "rules": [
+            {
+                "id": item.rule.id,
+                "statement": item.rule.statement,
+                "scope": item.rule.scope,
+                "why": item.reason,
+                "confidence": round(item.rule.confidence, 3),
+                "distance": round(item.rule.distance, 3),
+            }
+            for item in decision.selected
+        ],
+    }
+
+
 @app.post("/github/webhook")
 async def github_webhook(request: Request) -> dict:
     """Learn from a maintainer's comment on a pull request.
@@ -673,7 +753,13 @@ async def github_webhook(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="invalid signature") from exc
 
     event = request.headers.get("X-GitHub-Event", "")
-    parsed = parse_event(event, await request.json())
+    payload = await request.json()
+
+    opened = parse_pull_request(event, payload)
+    if opened is not None:
+        return await review_pull_request(settings, opened)
+
+    parsed = parse_event(event, payload)
     if parsed is None:
         return {"status": "ignored", "reason": f"nothing to do for {event or 'unknown event'}"}
 

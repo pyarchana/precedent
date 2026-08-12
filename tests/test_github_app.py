@@ -22,6 +22,7 @@ from precedent.api.github_app import (
     SignatureInvalid,
     extract_instruction,
     parse_event,
+    parse_pull_request,
     speaks_for_project,
     verify_signature,
 )
@@ -172,3 +173,63 @@ class TestExtractingTheInstruction:
     def test_a_multi_line_instruction_is_flattened(self):
         body = "@precedent put the note\nin the next release file"
         assert extract_instruction(body, "@precedent") == "put the note in the next release file"
+
+
+class TestActingUnprompted:
+    """Which pull request events are worth reading at all.
+
+    This is the one path with no human intent behind it, so the filtering has
+    to happen before any work is done. Every event admitted here becomes a
+    comment on somebody's pull request.
+    """
+
+    @staticmethod
+    def payload(action="opened", *, draft=False, number=42, repo="pyarchana/demo"):
+        return {
+            "action": action,
+            "repository": {"full_name": repo},
+            "pull_request": {
+                "number": number,
+                "title": "Fix groupby apply",
+                "draft": draft,
+                "user": {"login": "contributor"},
+            },
+        }
+
+    def test_a_new_pull_request_is_acted_on(self):
+        parsed = parse_pull_request("pull_request", self.payload())
+        assert parsed["pr_number"] == 42
+        assert parsed["repo"] == "pyarchana/demo"
+        assert parsed["title"] == "Fix groupby apply"
+
+    def test_a_push_to_an_existing_pull_request_is_not(self):
+        # `synchronize` fires on every push. Four force-pushes would collect
+        # four identical comments, and nothing the agent has to say changes
+        # between them.
+        assert parse_pull_request("pull_request", self.payload("synchronize")) is None
+
+    def test_reopening_does_not_repeat_the_comment(self):
+        assert parse_pull_request("pull_request", self.payload("reopened")) is None
+
+    def test_a_draft_is_left_alone(self):
+        assert parse_pull_request("pull_request", self.payload(draft=True)) is None
+
+    def test_a_draft_is_read_once_it_is_marked_ready(self):
+        parsed = parse_pull_request("pull_request", self.payload("ready_for_review", draft=True))
+        assert parsed["pr_number"] == 42
+
+    def test_a_comment_event_is_not_a_pull_request_event(self):
+        assert parse_pull_request("issue_comment", self.payload()) is None
+
+    def test_a_payload_without_a_repository_is_unusable(self):
+        # The pull request is not in the repository the memory is about, so
+        # there is nothing to fall back on: without the name there is nowhere
+        # to read the diff from or post to.
+        payload = self.payload()
+        del payload["repository"]
+        assert parse_pull_request("pull_request", payload) is None
+
+    def test_a_payload_without_a_number_is_unusable(self):
+        payload = self.payload()
+        del payload["pull_request"]["number"]
+        assert parse_pull_request("pull_request", payload) is None
