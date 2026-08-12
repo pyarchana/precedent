@@ -127,3 +127,72 @@ class TestWellFormedResponsesAreUnaffected:
         # The flag postdates the prompts. Absence must not read as refusal, or
         # every response written before it would fail closed.
         assert validated(DraftedRule, {"statement": "Do X."}, context="t").is_usable is True
+
+
+class TestAnAbsentOptionalFieldIsNotAMalformedResponse:
+    """`rationale: null` discarded a live maintainer correction.
+
+    The prompt says to give a rationale "only if they gave a reason", so a
+    maintainer who states a convention flatly gets `null` back, which is the
+    correct JSON for that. Pydantic rejected it for a plain `str`, and because
+    validation is all-or-nothing the entire response went inert: `usable` became
+    false and the webhook answered "no convention stated".
+
+    Reproduced six times out of six against the real prompt before the fix, on
+    a payload that was otherwise exactly what was asked for.
+    """
+
+    def test_a_null_rationale_keeps_the_rule(self):
+        draft = validated(
+            DraftedRule,
+            {
+                "usable": True,
+                "statement": "Place whatsnew entries in the file for the next release.",
+                "rationale": None,
+                "scope": "file",
+                "scope_pattern": "whatsnew*",
+            },
+            context="t",
+        )
+        assert draft.is_usable is True
+        assert draft.statement.startswith("Place whatsnew")
+        assert draft.rationale == ""
+        assert draft.scope_pattern == "whatsnew*"
+
+    def test_a_null_reason_keeps_the_verdict(self):
+        verdict = validated(Verdict, {"relation": "contradicts", "reason": None}, context="t")
+        assert verdict.relation == "contradicts"
+        assert verdict.reason == ""
+
+    def test_a_null_missing_keeps_the_answer(self):
+        parsed = validated(
+            AnswerOutput,
+            {"answered": True, "answer": "do X [PR #1]", "missing": None},
+            context="t",
+        )
+        assert parsed.answered is True
+        assert parsed.answer == "do X [PR #1]"
+
+    def test_a_null_rationale_keeps_an_extracted_rule(self):
+        rule = validated(
+            ExtractedRule,
+            {"is_convention": True, "statement": "Do X.", "rationale": None},
+            context="t",
+        )
+        assert rule.is_convention is True
+        assert rule.statement == "Do X."
+
+    def test_a_nullable_field_is_still_allowed_to_be_null(self):
+        # scope_pattern means None. Coercing it to "" would turn "applies
+        # everywhere" into a pattern that matches nothing.
+        assert validated(DraftedRule, {"scope_pattern": None}, context="t").scope_pattern is None
+
+    def test_a_null_answer_is_still_no_answer(self):
+        # The direction of failure is unchanged: empty text is not an answer.
+        assert validated(AnswerOutput, {"answered": True, "answer": None}, context="t").answer == ""
+
+    def test_a_null_statement_is_still_unusable(self):
+        assert (
+            validated(DraftedRule, {"usable": True, "statement": None}, context="t").is_usable
+            is False
+        )

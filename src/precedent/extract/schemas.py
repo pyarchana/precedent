@@ -63,7 +63,38 @@ def _one_of(allowed: frozenset[str], fallback: str, value: object) -> str:
     return fallback
 
 
-class AnswerOutput(BaseModel):
+class ModelOutput(BaseModel):
+    """Base for every model response, handling the one thing they all get right.
+
+    A prompt that says to include a rationale "only if they gave a reason" is
+    asking the model to omit it, and JSON's way of omitting a value is `null`.
+    Pydantic rejects `null` for a plain `str`, and because validation is
+    all-or-nothing, one absent optional field discarded the entire response.
+
+    That cost a live maintainer correction. `@precedent whatsnew entries go in
+    the file for the next release, not the current one` produced exactly the
+    payload the prompt asked for, `usable: true` with a clean statement and
+    `rationale: null`, and was thrown away six times out of six. The webhook
+    answered 200 with "no convention stated", so it looked like the model had
+    declined rather than like the schema had refused a correct answer.
+
+    This is the same shape as the `scope: "vibes"` bug: strictness protecting a
+    field nobody depends on by discarding the field everything depends on. A
+    `null` where a string was expected means empty, not malformed.
+    """
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def _null_text_is_empty(cls, value, info):
+        if value is not None:
+            return value
+        field = cls.model_fields.get(info.field_name)
+        # Only plain `str` fields. `scope_pattern: str | None` means it, and a
+        # null scope must still fall through to the label validator.
+        return "" if field is not None and field.annotation is str else value
+
+
+class AnswerOutput(ModelOutput):
     """What the answering prompt is asked to return."""
 
     answered: bool = False
@@ -77,7 +108,7 @@ class AnswerOutput(BaseModel):
         return _one_of(_CONFIDENCE_VALUES, "low", value)
 
 
-class DraftedRule(BaseModel):
+class DraftedRule(ModelOutput):
     """A convention drafted from a correction or a maintainer's comment."""
 
     # Absent means usable. The flag was added after the prompts shipped, and
@@ -100,14 +131,14 @@ class DraftedRule(BaseModel):
         return self.usable and bool(self.statement.strip())
 
 
-class Verdict(BaseModel):
+class Verdict(ModelOutput):
     """How two rules relate."""
 
     relation: Literal["same", "contradicts", "compatible"] = "compatible"
     reason: str = ""
 
 
-class ExtractedRule(BaseModel):
+class ExtractedRule(ModelOutput):
     """A convention distilled from a cluster of comments."""
 
     is_convention: bool = False
