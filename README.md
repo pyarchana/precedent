@@ -12,7 +12,7 @@
 [![CockroachDB](https://img.shields.io/badge/CockroachDB-Vector_Index-6933FF?logo=cockroachlabs&logoColor=white)](https://www.cockroachlabs.com/)
 [![AWS](https://img.shields.io/badge/AWS-Lambda_+_S3-FF9900?logo=amazonaws&logoColor=white)](https://aws.amazon.com/lambda/)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-98_passing-2ea44f)](tests/)
+[![Tests](https://img.shields.io/badge/tests-228_passing-2ea44f)](tests/)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
 **86,317** review comments &nbsp;·&nbsp; **21,762** pull requests &nbsp;·&nbsp; **2011 to 2026** &nbsp;·&nbsp; **298** learned conventions
@@ -27,20 +27,82 @@ maintainer's correction today does nothing for the person who asks the same thin
 next month.
 
 Precedent reads a repository's entire review history, distils the durable
-conventions out of it, answers contributor questions with citations back to the
-specific pull requests the claim came from, and lets a maintainer correct an
-answer once so that every later answer reflects the correction.
+conventions out of it, and says them back where the work happens: on a pull
+request, unprompted, cited to the specific pull requests the claim came from. A
+maintainer can correct it in place, and every later answer reflects that.
 
 Target repository: [pandas-dev/pandas](https://github.com/pandas-dev/pandas).
 
 ```
-contributor   ask            ->   answer, cited to real pull requests
+contributor   opens a PR     ->   the agent reads the changed paths and posts
+                                  the conventions anchored to those files
                                     |
-maintainer    "not quite,     ->   the contradicted rule is retired,
-               actually X"          and so are its near duplicates
+maintainer    "@precedent    ->   verified as a maintainer by GitHub, no login,
+               actually X"        the contradicted rule is retired, and so are
+                                  its near duplicates
                                     |
-contributor   ask again       ->   the corrected answer, citing the correction
+contributor   asks           ->   the corrected answer, citing the correction
 ```
+
+## It comments on pull requests without being asked
+
+[**See it happen on a real pull request.**](https://github.com/pyarchana/precedent/pull/1)
+
+Nobody addressed the agent. A pull request opened touching `pandas/core/frame.py`
+and `doc/source/whatsnew/v3.0.0.rst`, and it read the changed paths, found the
+conventions anchored to those files, and posted them:
+
+> **From pandas-dev/pandas review history**
+>
+> Nobody asked me. I read the files this pull request changes and found three
+> conventions the project has settled before, each linked to where it was settled.
+>
+> - **Always include a whatsnew entry in the appropriate file for any bug fixes or new features.**
+>   Established in [pandas-dev/pandas#64119](https://github.com/pandas-dev/pandas/pull/64119) and [#61985](https://github.com/pandas-dev/pandas/pull/61985).
+>   Raised because it changes `doc/source/whatsnew/v3.0.0.rst`.
+
+Identity comes from GitHub, not from a login. Webhook deliveries are signed with
+HMAC SHA-256, so `sender.login` is trustworthy without this application ever
+handling a password, running an OAuth flow, or holding a session, and
+`author_association` is GitHub's own answer to whether someone may speak for the
+project.
+
+**What it does not do is check whether your diff complies.** It names what the
+project has already decided and links where. Claiming a diff violates a
+convention means being right about the diff, and being wrong there costs more
+than being unhelpful.
+
+## Does the memory actually help
+
+The obvious rebuttal is that `gpt-4o-mini` has read a lot of pandas and might
+answer these questions on its own. So the same 29 evaluation questions went to
+both, and the answer is uncomfortable in one column and decisive in the other.
+
+| | correct | refused when it should | citations that resolve |
+| --- | --- | --- | --- |
+| Precedent | 8/24 (33%) | **4/5 (80%)** | **43/43 (100%)** |
+| `gpt-4o-mini` alone | 9/24 (38%) | 0/5 (0%) | 0/24 (0%) |
+
+**Memory did not make it more accurate.** The baseline scored one question
+higher, which on 24 questions is noise rather than a result. Three of
+Precedent's misses were refusals on questions it could have answered, so it is
+also over-cautious.
+
+What it changed is whether the answer can be trusted. Five questions are
+deliberately unanswerable from review history. The baseline answered all five,
+confidently, inventing project policy on release schedules, governance and
+credentials. And of the 24 pull requests it cited, **none** resolve to a real
+discussion in the corpus: it is generating plausible five-digit numbers.
+Precedent cited 43 and every one resolves, because citations are verified
+against retrieved evidence before an answer is released and a failure suppresses
+the whole answer.
+
+Memory does not make the model smarter. It makes it accountable, which is the
+difference that matters when a contributor cannot tell a confident right answer
+from a confident invented one.
+
+Reproduce with `python scripts/run_baseline.py`, about a cent and a half.
+Full output in [`eval/baseline.json`](eval/baseline.json).
 
 ## Built with
 
@@ -51,8 +113,13 @@ contributor   ask again       ->   the corrected answer, citing the correction
 
 | AWS | How it is used |
 | --- | --- |
-| **Lambda** | Serves the whole application, API and page, behind a Function URL. |
+| **Lambda** | Serves the whole application, API, page and GitHub webhook, behind a Function URL. |
 | **S3** | Holds the raw ingested review history, 3,801 gzipped pages, staged before transform. |
+
+| GitHub | How it is used |
+| --- | --- |
+| **App webhooks** | Signed deliveries make `sender.login` trustworthy with no login of any kind. `author_association` decides who may teach the memory. |
+| **Installation tokens** | RS256 JWT exchanged for a short-lived token, so the grant is revocable by uninstalling rather than by rotating a key. |
 
 ## Memory model
 
