@@ -347,18 +347,31 @@ def select(rules: list[RetrievedRule], paths: list[str], touched: Touched) -> li
 
 
 def _citations(rule: RetrievedRule, source_repo: str) -> str:
-    """Links to where the convention was established, deduplicated by pull request.
+    """Links to where the convention was established, deduplicated by source.
 
-    The first link names the repository the memory is drawn from, the rest do
-    not. Bare `#64119` renders as a reference to *the repository being commented
-    on*, which is the wrong project: the conventions come from pandas, and the
-    pull request being commented on almost never does. Naming the source once
-    per rule is what makes the provenance readable without repeating it three
-    times a line.
+    Two kinds of evidence, and conflating them produced a false citation.
+
+    Most evidence is a review thread in the repository the memory was built
+    from, so it is labelled `pandas-dev/pandas#64119` once per rule and `#61985`
+    thereafter. A bare `#64119` would render as a reference into whatever
+    repository is being commented on, which is the wrong project.
+
+    But a rule can also be evidenced by a maintainer teaching it directly, and
+    that comment happened wherever the app is installed, not in the source
+    repository. Labelling it `pandas-dev/pandas#2` while linking to
+    `pyarchana/precedent#2` is a citation whose label and target disagree, which
+    is precisely the failure this system exists to make impossible. Those are
+    named for what they are instead.
     """
-    seen: dict[int, str | None] = {}
+    seen: dict[str, tuple[str, str | None]] = {}
     for hit in rule.citations:
-        seen.setdefault(hit.pr_number, hit.url)
+        if hit.kind == "maintainer_correction":
+            key = f"correction:{hit.author}"
+            label = f"a correction by {hit.author or 'a maintainer'}"
+        else:
+            key = f"pr:{hit.pr_number}"
+            label = str(hit.pr_number)
+        seen.setdefault(key, (label, hit.url))
         if len(seen) >= CITATIONS_PER_RULE:
             break
 
@@ -366,9 +379,14 @@ def _citations(rule: RetrievedRule, source_repo: str) -> str:
         return ""
 
     links = []
-    for position, (number, url) in enumerate(seen.items()):
-        label = f"{source_repo}#{number}" if position == 0 else f"#{number}"
-        links.append(f"[{label}]({url})" if url else label)
+    named_source = False
+    for key, (label, url) in seen.items():
+        if key.startswith("correction:"):
+            text_label = label
+        else:
+            text_label = f"{source_repo}#{label}" if not named_source else f"#{label}"
+            named_source = True
+        links.append(f"[{text_label}]({url})" if url else text_label)
 
     return f"  \n  Established in {' and '.join(links)}."
 
