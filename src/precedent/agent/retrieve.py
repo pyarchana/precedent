@@ -37,6 +37,30 @@ MAX_RULE_DISTANCE = 1.15
 # concealing it would make the memory look more certain than it is.
 LOW_CONFIDENCE = 0.4
 
+# Slots reserved for what a maintainer actually said, when distance alone would
+# not have retrieved it.
+#
+# This exists because the central claim failed a live test. A maintainer taught
+# the project "place whatsnew entries in the current release file, not the next
+# one", and asking "which whatsnew file should my bug fix note go in?" answered
+# from five inferred rules without mentioning it. Measured, the correction sat
+# at distance 1.038, inside the 1.15 threshold but thirteenth, because five
+# rules distilled from patterns phrase the topic more like the question does.
+#
+# Ranking a maintainer's explicit statement below an inference is the wrong way
+# round whenever both are in range, and it makes corrections invisible, which is
+# the one thing this system promises they are not. `agent/review.py` already
+# resolves the same tie the same way.
+#
+# Capped rather than unbounded: stated rules take at most this many of `rule_k`,
+# so a repository with many corrections cannot crowd out the rules that actually
+# match the question.
+MAX_PROMOTED_STATED = 2
+
+# How many rules to rank before taking `rule_k`. Wide enough that a stated rule
+# outside the top k is still seen; the correction above needed thirteen.
+RANKING_POOL = 20
+
 
 @dataclass(slots=True)
 class RetrievedRule:
@@ -136,6 +160,42 @@ EVIDENCE_FOR_RULES = text("""
     """).bindparams(bindparam("rule_ids", expanding=True))
 
 
+def rank_rules(rows: list, rule_k: int) -> list:
+    """Take `rule_k` rules, letting what a maintainer said in ahead of distance.
+
+    Rows arrive ordered by distance and already filtered to active rules within
+    the threshold, so everything here is relevant; the only question is which
+    relevant rules fit in the budget. Up to `MAX_PROMOTED_STATED` stated rules go
+    first, then the closest of the rest, and the result is put back into distance
+    order so the prompt still reads nearest first.
+
+    Promoting nothing when there are no stated rules in range, which is the
+    ordinary case, leaves the previous behaviour exactly as it was.
+    """
+    # Sorted here rather than trusted. The SQL does order by distance, but this
+    # function's whole job is deciding what "nearest" loses to, and a caller
+    # that hands over an unsorted pool would silently get its worst rules.
+    rows = sorted(rows, key=lambda r: float(r["distance"]))
+
+    stated = [r for r in rows if str(r["origin"]) in STATED_ORIGINS]
+    if not stated:
+        return rows[:rule_k]
+
+    promoted = stated[:MAX_PROMOTED_STATED]
+    promoted_ids = {r["id"] for r in promoted}
+    remainder = [r for r in rows if r["id"] not in promoted_ids]
+
+    chosen = promoted + remainder[: max(rule_k - len(promoted), 0)]
+    chosen.sort(key=lambda r: float(r["distance"]))
+
+    if any(r["id"] not in {x["id"] for x in rows[:rule_k]} for r in promoted):
+        log.info(
+            "promoted %d stated rule(s) that distance alone would not have retrieved",
+            len(promoted),
+        )
+    return chosen
+
+
 async def recall(
     engine: AsyncEngine,
     provider: EmbeddingProvider,
@@ -162,15 +222,23 @@ async def recall(
                         "query": vector,
                         # Over-fetch, because the status filter runs outside
                         # the vector-ordered subquery.
-                        "candidates": max(rule_k * 4, 20),
+                        # Over-fetch twice over. The status filter runs outside
+                        # the vector-ordered subquery, so superseded rules
+                        # consume slots in here, and the pool has to be deep
+                        # enough that a stated rule ranked thirteenth among
+                        # active ones is still in it.
+                        "candidates": max(rule_k * 4, RANKING_POOL * 4),
                         "max_distance": max_rule_distance,
-                        "k": rule_k,
+                        # Ranked in Python, so more than rule_k comes back.
+                        "k": max(rule_k, RANKING_POOL),
                     },
                 )
             )
             .mappings()
             .all()
         )
+
+        rows = rank_rules(rows, rule_k)
 
         by_rule: dict[str, list[SearchHit]] = defaultdict(list)
         if rows:
