@@ -364,3 +364,65 @@ class TestTheQueryPutToMemory:
     def test_a_missing_title_still_produces_a_query(self):
         paths = ["pandas/core/frame.py"]
         assert describe(None, paths, classify(paths)).strip()
+
+
+class TestCitationLabelsMatchTheirTargets:
+    """A label that disagrees with its link is a fabricated citation.
+
+    A maintainer teaching a convention leaves a comment in whatever repository
+    the app is installed on, not in the repository the memory was built from.
+    Prefixing the source repo onto it produced `pandas-dev/pandas#2` pointing at
+    `pyarchana/precedent#2`, which is exactly the failure this system exists to
+    make impossible.
+    """
+
+    @staticmethod
+    def correction(author="pyarchana", url="https://github.com/pyarchana/precedent/pull/2"):
+        from datetime import UTC, datetime
+
+        return SearchHit(
+            id="c",
+            pr_number=2,
+            kind="maintainer_correction",
+            body="whatsnew entries go in the current release file",
+            author=author,
+            is_maintainer=True,
+            file_path=None,
+            url=url,
+            created_at=datetime.now(UTC),
+            distance=0.0,
+        )
+
+    def test_a_correction_is_not_labelled_as_a_source_pull_request(self):
+        body = render(
+            [Applicable(rule=rule(citations=[self.correction()]), reason="r")],
+            "@precedent",
+            "pandas-dev/pandas",
+        )
+        assert "pandas-dev/pandas#2" not in body
+        assert "a correction by pyarchana" in body
+
+    def test_a_review_thread_still_names_the_source_repository(self):
+        body = render(
+            [Applicable(rule=rule(citations=[hit(64119, "u")]), reason="r")],
+            "@precedent",
+            "pandas-dev/pandas",
+        )
+        assert "pandas-dev/pandas#64119" in body
+
+    def test_a_mixed_rule_labels_each_kind_correctly(self):
+        selected = [
+            Applicable(
+                rule=rule(citations=[self.correction(), hit(64119, "u")]),
+                reason="r",
+            )
+        ]
+        body = render(selected, "@precedent", "pandas-dev/pandas")
+        assert "a correction by pyarchana" in body
+        assert "pandas-dev/pandas#64119" in body
+
+    def test_two_corrections_by_the_same_person_are_not_listed_twice(self):
+        selected = [
+            Applicable(rule=rule(citations=[self.correction(), self.correction()]), reason="r")
+        ]
+        assert render(selected, "@precedent").count("a correction by pyarchana") == 1
