@@ -25,6 +25,12 @@ LOCAL_DSN = "postgresql://root@localhost:26257/precedent?sslmode=disable"
 
 async def run(dsn: str, statement: str) -> int:
     engine = create_engine(dsn, pool_size=1, max_overflow=0)
+    # EXPLAIN output is drawn with box characters, which the Windows console
+    # encodes as cp1252 by default and then dies on. Reconfiguring beats
+    # stripping them: the tree structure is the readable part of a query plan.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
     try:
         async with engine.begin() as conn:
             result = await conn.execute(text(statement))
