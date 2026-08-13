@@ -4,12 +4,28 @@ Returns comments with enough metadata to cite them, because an answer the agent
 cannot attribute to a real pull request is indistinguishable from the base model
 recalling pandas trivia.
 
-## Why the query is shaped the way it is
+## The index this is shaped for is not currently built
 
-Every claim below was checked with EXPLAIN against a real cluster, because the
-difference between using `idx_rc_embedding` and not using it is the difference
-between an approximate lookup and a distance computation over every vector in
-the repository.
+`idx_rc_embedding` is defined in migration 0002 and is **not on the cluster**.
+It was dropped for the embedding backfill, which is a real and documented
+speedup (9 rows/sec with the index against 57.8 without, so nine hours against
+eighty minutes), and the rebuild never completed on a free-tier serverless
+cluster. `EXPLAIN` on this query today reports a full scan of 86,000 rows.
+
+That is survivable rather than fine, and it is stated here rather than in a
+comment nobody reads. This path is secondary: `agent/retrieve.py` searches
+`rules`, whose vector index **is** built and used, and only falls through to
+comments when the rules are not confident enough to answer alone. Check the
+state before trusting any timing measured against this module:
+
+    SELECT index_name FROM [SHOW INDEXES FROM review_comments]
+
+## Why the query is shaped the way it is anyway
+
+Every claim below was checked with EXPLAIN against a real cluster while the
+index existed, and the shapes remain correct for when it is rebuilt. Getting
+them wrong is the difference between an approximate lookup and a distance
+computation over every vector in the repository.
 
   * `ORDER BY <-> ... LIMIT` is the only shape the vector index recognises.
     Ordering by a computed distance alias does not qualify.
