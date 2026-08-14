@@ -1,0 +1,7 @@
+What is new in 3.0.0
+====================
+
+Bug fixes
+~~~~~~~~~
+
+- Fixed groupby.apply dropping the group key
