@@ -18,6 +18,7 @@ demo/_extracted/
 # public repo. The technical decisions in here belong in the README instead.
 docs/progress.md
 docs/video-script.md
+docs/devpost.md
 
 # Python
 __pycache__/
