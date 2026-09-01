@@ -16,17 +16,17 @@ jobs:
         python-version: ["3.11", "3.12"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # setup-python, not just setup-uv. The runner's own Python lives in /usr
       # and is externally managed, so `uv pip install --system` refuses it under
       # PEP 668. This also makes the matrix real: without it every job used the
       # runner default, so the 3.11 entry was testing 3.12 and passing.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
 
@@ -75,12 +75,12 @@ jobs:
     # deadline.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           # Matches the Lambda runtime the package targets.
           python-version: "3.12"
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
       - run: uv pip install --system -e ".[db,api,lambda]"
       - run: python scripts/build_lambda.py
       - name: Check the package contents
