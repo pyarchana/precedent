@@ -1,0 +1,59 @@
+name: Bug report
+description: Something behaved differently from how it is documented.
+labels: [bug]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The most useful thing you can include is what the system said about its
+        own decision. Nearly every path here reports why it did what it did, and
+        that string usually identifies the problem faster than a description of
+        the symptom.
+
+  - type: dropdown
+    id: path
+    attributes:
+      label: Which part
+      options:
+        - Asking a question (/ask, or the demo page)
+        - The comment it posts on a pull request
+        - Teaching it a convention (@precedent on a pull request)
+        - Ingest or extraction (scripts/)
+        - Deployment (Lambda, packaging, CI)
+        - Something else
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: response
+    attributes:
+      label: What it reported
+      description: |
+        For a question, the JSON from `/ask`. For anything driven by a webhook,
+        the Response body from the GitHub App's Advanced, Recent Deliveries
+        page, which names the gate that stopped it. For a script, the traceback.
+      render: text
+
+  - type: input
+    id: version
+    attributes:
+      label: Commit
+      description: Output of `git rev-parse --short HEAD`, or "the hosted demo".
+
+  - type: checkboxes
+    id: silent
+    attributes:
+      label: One thing worth checking first
+      options:
+        - label: >
+            If nothing raised an error and the output merely looked wrong, say
+            so explicitly. Failures that return plausible results are the
+            recurring bug class in this project and they get looked at first.

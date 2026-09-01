@@ -1,0 +1,35 @@
+name: Idea
+description: Something it should do, or should stop doing.
+labels: [enhancement]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Worth a look at [ROADMAP.md](../blob/main/ROADMAP.md) first. Several
+        obvious things are already there, including what is blocked on budget
+        rather than on ideas, and two deliberate non-goals.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is the problem
+      description: >
+        The situation it would improve, rather than the feature itself. A
+        maintainer or contributor hitting something, ideally.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+
+  - type: textarea
+    id: measure
+    attributes:
+      label: How would we know it worked
+      description: >
+        Optional, and genuinely useful. Most of this project's mistakes were
+        things that looked fine and were not, so anything that ships tends to
+        need a number attached before and after.
