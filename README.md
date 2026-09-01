@@ -46,11 +46,12 @@ contributor   asks           ->   the corrected answer, citing the correction
 
 ## It comments on pull requests without being asked
 
-[**See it happen on a real pull request.**](https://github.com/pyarchana/precedent/pull/1)
+[**See it happen on a real pull request.**](https://github.com/pyarchana/precedent/pull/5)
 
-Nobody addressed the agent. A pull request opened touching `pandas/core/frame.py`
-and `doc/source/whatsnew/v3.0.0.rst`, and it read the changed paths, found the
-conventions anchored to those files, and posted them:
+Nobody addressed the agent. A pull request opened touching
+`pandas/core/groupby/groupby.py` and `doc/source/whatsnew/v3.0.0.rst`, and it
+read the changed paths, found the conventions anchored to those files, and
+posted them:
 
 > **From pandas-dev/pandas review history**
 >
@@ -60,6 +61,11 @@ conventions anchored to those files, and posted them:
 > - **Always include a whatsnew entry in the appropriate file for any bug fixes or new features.**
 >   Established in [pandas-dev/pandas#64119](https://github.com/pandas-dev/pandas/pull/64119) and [#61985](https://github.com/pandas-dev/pandas/pull/61985).
 >   Raised because it changes `doc/source/whatsnew/v3.0.0.rst`.
+
+One of the three it raised there is not a rule it inferred from the corpus at
+all. It is a convention a maintainer taught it earlier, through the same pull
+request comment mechanism described below, and it now sits alongside conventions
+distilled from a decade of review threads.
 
 Identity comes from GitHub, not from a login. Webhook deliveries are signed with
 HMAC SHA-256, so `sender.login` is trustworthy without this application ever
