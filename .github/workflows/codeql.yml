@@ -1,0 +1,53 @@
+# Static security analysis.
+#
+# Worth having on this project specifically because of what it handles: a
+# webhook whose signature is the only access control, an installation token that
+# grants write access to somebody's repository, retrieved review comments that
+# are untrusted text going into a prompt, and SQL built from stored patterns.
+# Those are the shapes CodeQL is good at, and none of them are caught by ruff.
+#
+# Runs on a schedule as well as on changes, because a query pack updated next
+# month can find something in code that has not been touched since.
+#
+# No build step: CodeQL analyses Python from source, so nothing here installs
+# dependencies, and nothing here reaches the CockroachDB cluster.
+
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Mondays, 06:00 UTC. Off-cycle from anything else so a failure here is
+    # never confused with a failure from a push.
+    - cron: "0 6 * * 1"
+
+jobs:
+  analyze:
+    name: Analyze Python
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Only what uploading results requires. The default token is broader.
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          # security-extended adds the lower-confidence queries. On a codebase
+          # this size the extra noise is manageable and the point of running it
+          # is to be told about things I did not already know.
+          queries: security-extended
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"
