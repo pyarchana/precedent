@@ -1,0 +1,39 @@
+# Dependency updates, deliberately quiet.
+#
+# This is a solo project, so the failure mode to design against is not stale
+# dependencies, it is a pull request queue nobody reads. Both ecosystems are
+# grouped into a single monthly pull request each, capped at one open at a time.
+#
+# Safe to merge on green: CI runs the full suite on 3.11 and 3.12, then builds
+# the Lambda package and imports the handler out of the built artefact. Nothing
+# in CI touches the CockroachDB cluster, so an update cannot cost request units
+# against the free allowance.
+
+version: 2
+
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      python:
+        patterns:
+          - "*"
+    commit-message:
+      # Matches the repo's own convention: short imperative subject, no scope
+      # prefixes, reasoning belongs in the module docstring rather than here.
+      prefix: Update
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: Update
