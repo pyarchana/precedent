@@ -177,6 +177,16 @@ def rank_rules(rows: list, rule_k: int) -> list:
     # that hands over an unsorted pool would silently get its worst rules.
     rows = sorted(rows, key=lambda r: float(r["distance"]))
 
+    # Filtered here for the same reason, and it matters more than the sort.
+    # SEARCH_RULES does exclude superseded rules, but promotion below exists
+    # precisely to lift a stated rule past the distance ordering, and a
+    # correction that was itself later corrected is both stated and retired.
+    # One loosened WHERE clause would therefore promote a retired rule over the
+    # one that replaced it, and the answer would cite a convention the project
+    # abandoned, with a maintainer's name on it. Rows with no status column are
+    # treated as active, which is what a caller that does not select it means.
+    rows = [r for r in rows if str(r.get("status", "active")) == "active"]
+
     stated = [r for r in rows if str(r["origin"]) in STATED_ORIGINS]
     if not stated:
         return rows[:rule_k]
