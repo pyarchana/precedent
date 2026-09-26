@@ -1,10 +1,10 @@
 """Export rules for human audit, and apply the verdicts back.
 
-Plan day 12 is a human reading the top rules and deciding whether a pandas
-maintainer would actually agree with them. That step is not optional: the
-extraction prompt reduces bad rules but does not eliminate them, and a
-plausible-sounding rule the project does not hold is worse than no rule,
-because the agent will cite it with a straight face.
+A human reads the top rules and decides whether a pandas maintainer would
+actually agree with them. That step is not optional: the extraction prompt
+reduces bad rules but does not eliminate them, and a plausible-sounding rule
+the project does not hold is worse than no rule, because the agent will cite it
+with a straight face.
 
 This exports each rule together with the comments it was learned from, so the
 judgement can be made from the evidence rather than from whether the sentence

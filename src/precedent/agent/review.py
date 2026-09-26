@@ -6,65 +6,35 @@ project's accumulated conventions have anything to say about the files that
 changed. Asking is the easy case, because the question tells you what to look
 for. Here the only input is a list of paths.
 
-## Why this does not retrieve by similarity
+## Not by similarity
 
-The first version of this searched the rules by vector, the way `/ask` does,
-using a description of the change as the query. It commented on 38 of 40 real
-pull requests. `scripts/try_review.py --sample --sensitivity` shows why, and the
-reason is not a badly chosen threshold.
+The first version searched rules by vector using a description of the change,
+and commented on 38 of 40 pull requests. Across 25 of them the distance to the
+nearest rule and to the tenth nearest differed by a median of 0.10, whichever
+way the query was phrased. Every rule is a general statement about the same
+codebase, so every rule sits about equally far from any description of a change
+to it. A threshold over a signal that flat draws an arbitrary line through a
+blob: at 1.05 it spoke on 95% of pull requests, at 0.95 on 18%, with nothing
+meaningful in between.
 
-Across 25 pull requests, the distance from the query to the *nearest* rule and to
-the *tenth nearest* differed by a median of 0.10, whichever way the query was
-phrased: the title alone, the title with directories, or the whole thing written
-out as a question. Four formulations, all flat. Every rule sits at roughly the
-same distance from any description of a change, because every rule is a general
-statement about the same codebase, and a description of a change to that codebase
-is similar to all of them at once.
+## On paths instead
 
-A threshold over a signal that flat is drawing an arbitrary line through a blob.
-Set at 1.05 it spoke on 95% of pull requests; at 0.95, on 18%; there is no value
-in between that means anything, because the number it is thresholding does not
-measure what it is supposed to measure.
+Paths are facts. A rule anchored to `doc/source/whatsnew/%` applies to a pull
+request that changes a whatsnew file and does not apply to one that does not,
+which is why every line of the comment names the file that triggered it.
 
-## What it retrieves on instead
+Two things are therefore excluded. A `repo`, `style`, `process` or `api` scope
+is true of every pull request ever opened. And an anchor covering most of the
+repository is not an anchor: `pandas/%` matches 75% of known paths. See
+`MAX_ANCHOR_SHARE`.
 
-Paths, which are facts. A rule anchored to `doc/source/whatsnew/%` applies to a
-pull request that changes a whatsnew file and does not apply to one that does
-not. That is checkable, and it is why every line of the posted comment can name
-the file that triggered it rather than a similarity score.
-
-Two things are therefore excluded. A convention scoped `repo`, `style`,
-`process` or `api` is true of every pull request ever opened, so it is not
-evidence that this one needs a comment, and distance is now known to be unable to
-rank them. And an anchor covering most of the repository is not an anchor:
-`pandas/%` matches 75% of known paths, which says only that the change is to
-pandas, which was already known. See `MAX_ANCHOR_SHARE`.
-
-Similarity keeps a smaller and honest job: among the rules the paths have already
-admitted, the closest to the pull request's title goes first. Ranking inside a
-set that is already relevant is where a weak signal is still worth having.
-
-## What this did and did not fix
-
-Honestly, on the same 40 pull requests: the vector version spoke on 95%, and this
-one speaks on 92%. Two separate bugs were real and worth fixing on their own
-terms, and neither moved that number much.
-
-What did change is what gets said. Before, the comment was drawn from whichever
-`repo`-scoped platitudes happened to embed nearest, with no reason to give.
-Now every cited rule is anchored to a file the contributor actually changed, and
-the comment names that file. The remaining 92% is not the agent reaching: it is
-that most pandas pull requests do touch `pandas/core` or a whatsnew file, and
-this project genuinely does hold settled conventions about both.
-
-The rate is left where the evidence puts it rather than tuned down to look
-discerning. If it should be quieter, the honest lever is `MAX_ANCHOR_SHARE`, and
+Similarity keeps a smaller job: among rules the paths already admitted, the
+closest to the title goes first. This took the speaking rate from 95% to 92%,
+left where the evidence puts it rather than tuned to look discerning.
 `scripts/try_review.py --sample --sensitivity` prints what each value costs.
 
-## Silence
-
-The third outcome still matters. Silence is recorded as a decision (migration
-0008) so that "found nothing" stays distinguishable from "never ran".
+Silence is recorded as a decision (migration 0008), so "found nothing" stays
+distinguishable from "never ran".
 """
 
 from __future__ import annotations
@@ -113,19 +83,10 @@ ANCHORED_SCOPES = ("directory", "file", "testing", "docs")
 CANDIDATE_LIMIT = 500
 
 # An anchor matching more than this share of the repository is not an anchor.
-#
-# Measured, and for once there is a real gap to site it in. Across the 34
-# distinct patterns in memory, selectivity against 2,181 known paths falls into
-# two groups with nothing whatsoever between them: 54 rules anchor on under 10%
-# of the repository (`pandas/tests/indexing/test_loc.py` at 0.0%,
-# `doc/source/whatsnew/%` at 5.1%, `pandas/core/%` at 9.5%) and 25 anchor on
-# over 40% (`pandas/tests/%` at 42.3%, `pandas/**/*.py` at 63.0%, `pandas/%` at
-# 75.3%). Any value from 0.10 to 0.42 gives the identical answer, so the exact
-# number carries no weight; `scripts/try_review.py --sensitivity` prints it.
-#
-# The second group is what "always add a docstring, anywhere in pandas" looks
-# like as a pattern. True, and useless as a reason to comment on one particular
-# pull request.
+# Measured against 2,181 paths the patterns fall in two groups with nothing
+# between them: 54 under 10%, 25 over 40%. Any value from 0.10 to 0.42 gives the
+# same answer. The second group is "add a docstring, anywhere in pandas": true,
+# and useless as a reason to comment on one pull request.
 MAX_ANCHOR_SHARE = 0.25
 
 # Distinct paths sampled to measure an anchor against. Enough to make 10% and

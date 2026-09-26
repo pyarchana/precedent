@@ -4,8 +4,6 @@ CockroachDB runs SERIALIZABLE by default, so a transaction that loses a race is
 refused with SQLSTATE 40001 and is expected to be retried by the client. This is
 normal operation, not an error condition: any write path that does not retry
 will fail under concurrency.
-
-Day 19 hardens this with structured logging and metrics. This is the core of it.
 """
 
 from __future__ import annotations

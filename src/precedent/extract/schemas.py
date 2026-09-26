@@ -1,32 +1,13 @@
 """Shapes for what models return, and what to do when they return something else.
 
-A prompt asking for JSON gets JSON almost always, and the almost is the
-problem. `complete_json` hands back a plain dict, and every caller then reads
-it with `.get`, which quietly accepts anything:
+`complete_json` hands back a plain dict, and reading it with `.get` accepts
+anything: `bool({"answered": "false"}.get("answered"))` is True, which turns a
+refusal into an answer.
 
-    result = {"answered": "false"}
-    bool(result.get("answered"))       # True
-
-That is not a hypothetical. A model that writes `"false"` instead of `false`
-turns a refusal into an answer, and refusing is the behaviour this whole
-project is built around. The same shape of bug sits in the correction path,
-where `result.get("usable") is False` is not satisfied by the string `"false"`,
-so a correction the model declined to draft would be written anyway.
-
-## Failing towards doing nothing
-
-Every model here validates to the **inert** outcome when the payload is
-malformed:
-
-  * an answer becomes a refusal, not an answer
-  * a drafted rule becomes unusable, so nothing is written
-  * a contradiction verdict becomes "compatible", so nothing is retired
-
-That direction is deliberate. Each of these decides whether to write to memory
-or to state something to a contributor, and a garbled response is not evidence
-for either. The cost of failing this way is a request that does nothing; the
-cost of failing the other way is memory that quietly contains a claim nobody
-made.
+So a malformed payload validates to the **inert** outcome. An answer becomes a
+refusal, a drafted rule becomes unusable, a contradiction verdict becomes
+"compatible". Each of these decides whether to write to memory or to state
+something to a contributor, and a garbled response is not evidence for either.
 """
 
 from __future__ import annotations
@@ -50,11 +31,8 @@ def _one_of(allowed: frozenset[str], fallback: str, value: object) -> str:
     """Keep a recognised label, replace anything else with a safe one.
 
     Strictness has to be aimed. `usable` and `relation` decide whether memory is
-    written to, so a malformed one invalidates the whole response and the
-    caller does nothing. `scope` and `confidence` only label a result that is
-    otherwise fine, and discarding a maintainer's correction because the model
-    wrote "vibes" instead of "testing" throws away the part that mattered in
-    order to protect the part that did not.
+    written to; `scope` and `confidence` only label a result that is otherwise
+    fine, so "vibes" instead of "testing" must not discard a good correction.
     """
     if isinstance(value, str) and value.strip().lower() in allowed:
         return value.strip().lower()
@@ -64,23 +42,12 @@ def _one_of(allowed: frozenset[str], fallback: str, value: object) -> str:
 
 
 class ModelOutput(BaseModel):
-    """Base for every model response, handling the one thing they all get right.
+    """Base for every model response. A `null` string means empty, not malformed.
 
-    A prompt that says to include a rationale "only if they gave a reason" is
-    asking the model to omit it, and JSON's way of omitting a value is `null`.
-    Pydantic rejects `null` for a plain `str`, and because validation is
-    all-or-nothing, one absent optional field discarded the entire response.
-
-    That cost a live maintainer correction. `@precedent whatsnew entries go in
-    the file for the next release, not the current one` produced exactly the
-    payload the prompt asked for, `usable: true` with a clean statement and
-    `rationale: null`, and was thrown away six times out of six. The webhook
-    answered 200 with "no convention stated", so it looked like the model had
-    declined rather than like the schema had refused a correct answer.
-
-    This is the same shape as the `scope: "vibes"` bug: strictness protecting a
-    field nobody depends on by discarding the field everything depends on. A
-    `null` where a string was expected means empty, not malformed.
+    A prompt saying to give a rationale "only if they gave a reason" is asking
+    for `null`, Pydantic rejects that for a plain `str`, and validation is
+    all-or-nothing. One absent optional field discarded a live maintainer
+    correction six times out of six, reported as "no convention stated".
     """
 
     @field_validator("*", mode="before")
@@ -89,8 +56,8 @@ class ModelOutput(BaseModel):
         if value is not None:
             return value
         field = cls.model_fields.get(info.field_name)
-        # Only plain `str` fields. `scope_pattern: str | None` means it, and a
-        # null scope must still fall through to the label validator.
+        # Plain `str` only. `str | None` means it, and a null scope has to fall
+        # through to the label validator.
         return "" if field is not None and field.annotation is str else value
 
 
@@ -111,9 +78,8 @@ class AnswerOutput(ModelOutput):
 class DraftedRule(ModelOutput):
     """A convention drafted from a correction or a maintainer's comment."""
 
-    # Absent means usable. The flag was added after the prompts shipped, and
-    # treating its absence as refusal would fail every well-formed response
-    # that predates it.
+    # Absent means usable. The flag postdates the prompts, so reading its
+    # absence as refusal would fail every well-formed response before it.
     usable: bool = True
     needed: str = ""
     statement: str = ""
@@ -157,9 +123,8 @@ class ExtractedRule(ModelOutput):
 def validated(model: type[T], payload: object, *, context: str) -> T:
     """Coerce a model response into `model`, or return its inert default.
 
-    Never raises. A malformed response is a thing that happens, not an
-    exception the request should die on, and the defaults on every model above
-    are chosen so that "inert" means "change nothing".
+    Never raises. Every default above is chosen so that inert means change
+    nothing.
     """
     if not isinstance(payload, dict):
         log.warning("%s: expected a JSON object, got %s", context, type(payload).__name__)
@@ -167,8 +132,7 @@ def validated(model: type[T], payload: object, *, context: str) -> T:
     try:
         return model.model_validate(payload)
     except ValidationError as exc:
-        # Logged with the payload, because the useful debugging question is
-        # always which field the model got wrong rather than that it did.
+        # With the payload: the useful question is which field it got wrong.
         log.warning(
             "%s: model returned an unusable shape (%s); treating it as inert. payload=%r",
             context,

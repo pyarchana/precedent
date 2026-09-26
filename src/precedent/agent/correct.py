@@ -1,101 +1,30 @@
 """Apply a maintainer's correction so later answers reflect it.
 
-This is the claim the whole project rests on. Retrieval with citations is a
-search engine with good manners; what makes this a memory is that a maintainer
-can say "no, that is wrong" once, and the next contributor to ask gets the
-corrected answer, with the correction cited as the reason.
+Why it is built this way is in docs/architecture.md. What happens here:
 
-## The shape of the thing
+  1. The correction is stored as a `review_comments` row of kind
+     `maintainer_correction`, so it is embedded and cited on the same path as
+     anything said on a real pull request.
+  2. A model turns it into a standalone statement, since a correction is prose
+     and a rule has to stand on its own months later.
+  3. That statement is compared against the rules the answer actually used, in
+     the order it used them. The one it contradicts is superseded and points at
+     the replacement. Only if none matches does this fall back to nearest
+     neighbour.
+  4. The correction sweeps its neighbourhood, retiring other active rules it
+     also contradicts.
 
-A correction arrives attached to a specific answer, so it has something to act
-on: the rules that answer was built from, recorded on the turn at the time.
-From there:
+Step 4 exists because the first real correction retired its target and left two
+near duplicates of the corrected claim active at higher confidence. Memory held
+the correction and the claim it corrected at once, and which one an answer used
+came down to retrieval order.
 
-  1. The correction text is stored as a `review_comments` row of kind
-     `maintainer_correction`. Not in a side table. It is embedded and cited on
-     exactly the same path as anything a maintainer said on a real pull
-     request, which means every downstream consumer already handles it.
-  2. A model turns it into a rule statement, because a correction is prose
-     ("no, that only applies to the tests directory") and a rule has to stand
-     on its own months later.
-  3. The statement is compared against the rules the answer actually used. The
-     one it contradicts is superseded and points at the replacement.
-  4. The correction then sweeps its neighbourhood, retiring any other active
-     rule it also contradicts. See below: without this step a correction can
-     be true and still lose.
-
-## Why it compares against the cited rules and not the nearest ones
-
-`persist_rule` already supersedes on nearest-neighbour distance, and reusing
-that alone would have been less code. It answers the wrong question. A
-correction is aimed at a particular claim the agent made, and the rule that
-produced that claim is not reliably the nearest rule to the correction's
-wording: a maintainer writing "that is only true for new code" produces a
-statement whose nearest neighbour may be some other rule about new code
-entirely. Superseding that one would retire a correct rule and leave the wrong
-one standing, which is worse than doing nothing.
-
-So the cited rules are checked first, in the order the answer used them. Only
-when none of them is the target does this fall back to the ordinary
-nearest-neighbour path, which is the right behaviour for a correction that
-turns out to be about something the answer did not actually cite.
-
-## Why the correction is not simply believed
-
-The judge decides whether the correction contradicts a cited rule, agrees with
-it, or is about something else. All three happen:
-
-  * **contradicts** is the interesting case, and supersedes.
-  * **same** means the rule was right and the answer misused it. The correction
-    becomes further evidence for that rule instead of a near-duplicate of it.
-    Creating a second rule here would be the classic memory failure of learning
-    the same thing twice and trusting it more each time.
-  * **compatible** means the correction adds something rather than replacing
-    anything, so it goes in as a new rule and nothing is retired.
-
-## Why a correction can be refused
-
-A correction has to say what is true, not only that the answer is wrong. Given
-"no, that's wrong" and nothing else, the model drafting the rule has only the
-question and the answer in front of it, so it restates the answer. That
-restatement is then judged "same" as the rule it came from, and merged into it
-as further evidence.
-
-The result is the exact failure this path exists to prevent: a maintainer's
-objection raising the confidence of the thing they objected to. It is not
-hypothetical. The first vague correction this system received, "no actually its
-something else", was absorbed as a second supporting comment for the rule being
-disputed.
-
-So the drafting step may return `usable: false`, and then nothing is written at
-all.
-
-## Why one supersession is not enough
-
-The first correction this system took retired exactly the rule it was aimed at,
-and left memory holding the correction alongside two near duplicates of the
-thing that had just been corrected, both at higher confidence than the
-correction itself. Deduplication had judged those "compatible" rather than
-"same" when they were written, so they had survived as separate rules.
-
-Nothing was technically wrong. The correction was recorded, the cited rule was
-retired, and the next answer happened to come out right. But memory held a
-maintainer's correction and the claim they had corrected at the same time, and
-which one an answer used was down to retrieval order. That is not a memory that
-learned anything.
-
-So a correction sweeps: after superseding its target it compares itself against
-the other active rules nearby and retires the ones it also contradicts.
-
-The sweep is bounded tightly, and the first run showed why. Reaching out to the
-usual `CONSIDER_DISTANCE` it retired the two intended duplicates and also
-"always include the GitHub issue number in the pull request description", which
-does not conflict with a rule about test comments at all. That pair is the
-worked example of "compatible" in the judge's own prompt and the judge got it
-backwards anyway. So the sweep stops at `MERGE_DISTANCE`, where the measured
-duplicates were (0.445, 0.650, 0.708) and the false positive was not (0.763).
-A sweep retires several rules off single verdicts with nobody reviewing the
-result, so it needs a gate that does not depend on the judge being right.
+The sweep stops at `MERGE_DISTANCE`, not the usual `CONSIDER_DISTANCE`. Reaching
+further it also retired an unrelated rule about pull request descriptions, which
+is the judge's own worked example of "compatible" and it got it backwards.
+Measured, the real duplicates sat at 0.445, 0.650 and 0.708, the false positive
+at 0.763. A sweep retires several rules off single verdicts with nobody
+reviewing the result, so the gate cannot depend on the judge being right.
 
 Usage:
 
@@ -275,16 +204,10 @@ async def _statement_from_correction(chat, turn: Turn, maintainer: str, correcti
     parsed = validated(DraftedRule, result, context="drafting a correction")
     statement = parsed.statement.strip()
     if not parsed.is_usable:
-        # Nothing is written. A correction saying only that the answer is wrong
-        # leaves the model with just the question and the earlier answer to work
-        # from, so it restates the answer, and that restatement is then judged
-        # "same" as the rule it came from and merged into it as evidence.
-        #
-        # That is not a near miss, it is the failure this whole path exists to
-        # prevent: a maintainer's objection strengthening the thing they were
-        # objecting to. It happened on the first vague correction this system
-        # received, and the rule gained a second supporting comment from
-        # somebody disputing it.
+        # Nothing is written. With only the question and the earlier answer to
+        # work from the model restates the answer, that restatement is judged
+        # "same" as the rule it came from, and a maintainer's objection ends up
+        # strengthening what they objected to. See tests/test_invariants.py.
         needed = parsed.needed.strip()
         raise UnusableCorrection(
             "A correction has to say what the project actually does, not only that "

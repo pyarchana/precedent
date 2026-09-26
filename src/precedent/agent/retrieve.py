@@ -39,24 +39,10 @@ MAX_RULE_DISTANCE = 1.15
 # concealing it would make the memory look more certain than it is.
 LOW_CONFIDENCE = 0.4
 
-# Slots reserved for what a maintainer actually said, when distance alone would
-# not have retrieved it.
-#
-# This exists because the central claim failed a live test. A maintainer taught
-# the project "place whatsnew entries in the current release file, not the next
-# one", and asking "which whatsnew file should my bug fix note go in?" answered
-# from five inferred rules without mentioning it. Measured, the correction sat
-# at distance 1.038, inside the 1.15 threshold but thirteenth, because five
-# rules distilled from patterns phrase the topic more like the question does.
-#
-# Ranking a maintainer's explicit statement below an inference is the wrong way
-# round whenever both are in range, and it makes corrections invisible, which is
-# the one thing this system promises they are not. `agent/review.py` already
-# resolves the same tie the same way.
-#
-# Capped rather than unbounded: stated rules take at most this many of `rule_k`,
-# so a repository with many corrections cannot crowd out the rules that actually
-# match the question.
+# Slots reserved for what a maintainer said, when distance alone would not have
+# retrieved it. A live correction once sat at distance 1.038, inside the
+# threshold but thirteenth, because inferred rules phrase a topic more like the
+# question does. Capped, so many corrections cannot crowd out the matches.
 MAX_PROMOTED_STATED = 2
 
 # How many rules to rank before taking `rule_k`. Wide enough that a stated rule

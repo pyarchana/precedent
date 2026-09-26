@@ -1,25 +1,17 @@
 """Scoring how much to trust an extracted rule.
 
-The plan called for weighting by maintainer status. That turned out to be
-already spent: the deployed corpus is maintainer comments only, so every rule
-scores identically on it. Weighting by something constant is just a scale
-factor, and would have looked like signal while carrying none.
+Not by maintainer status: the corpus is maintainer comments only, so weighting
+by it is a scale factor that looks like signal and carries none. What separates
+a convention from a strongly held opinion is independence and durability.
 
-What is left is independence and durability, which are the properties that
-actually distinguish a convention from a strongly held opinion:
+  * **Independent voices**, the heaviest term. Four maintainers saying a thing
+    is a convention; one maintainer saying it four times is a preference.
+  * **Separate occasions**, by distinct pull request, since several comments in
+    one review are one conversation.
+  * **Persistence.** Guidance repeated across years has survived turnover.
+  * **Recency.** Copy-on-Write alone silently invalidated a lot of older advice.
 
-  * **Independent voices.** Four maintainers saying the same thing is a
-    convention. One maintainer saying it four times is a preference. This is
-    the heaviest term.
-  * **Separate occasions.** Distinct pull requests, because several comments
-    inside one review are a single conversation.
-  * **Persistence.** Guidance repeated across years has survived turnover and
-    argument. Guidance confined to one month may be a passing concern.
-  * **Recency.** A rule last mentioned in 2015 may since have been reversed.
-    Copy-on-Write alone silently invalidated a great deal of older advice.
-
-The weights are a judgement, not a measurement, and they are declared in one
-place so the audit on plan day 12 can argue with them.
+The weights below are a judgement, not a measurement.
 """
 
 from __future__ import annotations
@@ -45,22 +37,13 @@ WEIGHTS = {
     "recency": 0.15,
 }
 
-# A maintainer correcting a specific wrong answer is not weak evidence. It is
-# the strongest evidence this system can get: stated deliberately, in context,
-# by someone with authority over the answer.
-#
-# It also has none of the properties measured above, so measuring it produces a
-# number that is not merely imprecise but backwards. Corrections are therefore
-# floored rather than scored. The floor sits below 1.0 because a correction is
-# still one person on one occasion, and a convention restated by five
-# maintainers across four years should still be able to outrank it.
+# A correction has none of the properties measured above, so scoring it on them
+# gives a number that is backwards rather than merely imprecise. Floored, not
+# scored. Below 1.0 so a convention five maintainers held for four years wins.
 STATED_DIRECTLY_FLOOR = 0.85
 
-# Rule origins where a maintainer said the thing themselves, rather than it
-# being inferred from a pattern across comments. A correction arrives attached
-# to a wrong answer and retires it; a teaching arrives on a pull request and
-# adds to memory. The provenance differs and the authority does not, so both
-# take the floor above.
+# Origins where a maintainer said it themselves rather than it being inferred.
+# A correction retires a wrong answer, a teaching adds to memory; same authority.
 STATED_ORIGINS = frozenset({"correction", "taught"})
 
 

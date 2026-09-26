@@ -1,8 +1,8 @@
 """Tests for rule confidence scoring.
 
-These pin down the ordering the score is meant to express, rather than exact
-numbers, because the weights are a judgement that the day 12 audit may revise.
-What must not change is which rules outrank which.
+These pin down the ordering the score is meant to express rather than exact
+numbers, because the weights are a judgement and an audit may revise them. What
+must not change is which rules outrank which.
 """
 
 from __future__ import annotations

@@ -12,18 +12,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-# GitHub's authorAssociation values that mean "this person speaks for the project".
-# CONTRIBUTOR means "has had a PR merged", which is not the same thing and is
-# deliberately excluded: the whole point of confidence weighting is that a
-# maintainer saying something counts for more.
-#
-# This field is necessary and **not sufficient**. GitHub computes it from the
-# permissions the author holds *now*, not the permissions they held when they
-# wrote the comment, so anyone who has stepped back from a project reads as
-# CONTRIBUTOR across their entire history. On pandas that misclassifies the
-# single most prolific reviewer in the project's life. `known_maintainers`
-# carries the people behaviour identifies that this field misses; see
-# scripts/derive_maintainers.py.
+# Necessary and not sufficient. GitHub computes this from permissions held now,
+# so anyone who has stepped back reads as CONTRIBUTOR across their whole
+# history, which on pandas misclassifies its most prolific reviewer ever.
+# `known_maintainers` covers that gap; see scripts/derive_maintainers.py.
 MAINTAINER_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 
 # Bots that comment on pandas PRs. Matching is exact on lowercased login, in
@@ -43,16 +35,10 @@ KNOWN_BOTS = frozenset(
 )
 
 
-# Lines from the pull request template. A description that is mostly these is
-# a filled-in form, not a maintainer teaching anyone anything.
-#
-# This was found by auditing extracted rules. 2,585 comments, one per pull
-# request and about 4% of the corpus, are this template. Six of the top fifty
-# rules were built on it, producing statements like "always include the GitHub
-# issue number in the pull request description" whose supporting evidence is a
-# checklist rather than anything a reviewer said. Filtering at the cluster
-# level did not catch it: in a cluster of eighty items the template mixes with
-# real comments and the distances no longer look degenerate.
+# A description that is mostly these is a filled-in form, not a maintainer
+# teaching anyone anything. 2,585 comments, 4% of the corpus, are this template,
+# and six of the top fifty rules were built on it. Filtering at the cluster level
+# missed it: among eighty items the distances stop looking degenerate.
 TEMPLATE_MARKERS = (
     "replace xxxx with the",
     "tests added and passed if fixing a bug",

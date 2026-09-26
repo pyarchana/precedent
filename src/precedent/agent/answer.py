@@ -202,19 +202,10 @@ def extract_citations(text: str) -> list[int]:
     return sorted({int(n) for n in re.findall(r"\[PR #(\d+)\]", text)})
 
 
-# Matches the label with or without its trailing date. Verification is on the
-# author alone, deliberately.
-#
-# The label is rendered with a date because a reader wants to know when the
-# project changed its mind. Models routinely drop it, writing "[correction by
-# jbrockmendel]" for a label rendered "[correction by jbrockmendel,
-# 2026-08-08]". Requiring the whole string to match meant a correctly cited
-# answer was reported as having fabricated its citation, which is far worse
-# than a missing date: it discredits the one check this system offers, and it
-# fires precisely on the answers that used a correction properly.
-#
-# The author is the part that carries the claim, so it is the part verified.
-# Citing a maintainer who did not correct anything is still caught.
+# With or without the trailing date, because models routinely drop it. Requiring
+# the whole label reported correctly cited answers as fabricating citations,
+# firing precisely on the answers that used a correction properly. The author
+# carries the claim, so crediting someone who corrected nothing is still caught.
 _CORRECTION_CITATION = re.compile(r"\[correction by ([^\],\]]+)(?:,[^\]]*)?\]")
 
 
@@ -287,15 +278,9 @@ async def answer_question(chat, recall: Recall) -> Answer:
         )
 
     if invented or invented_corrections:
-        # The answer is discarded, not flagged and returned.
-        #
-        # It used to be returned with `trustworthy: false` alongside it, which
-        # put the burden of noticing on whoever consumed the response. Nobody
-        # reads a boolean next to fluent, plausible prose. And an answer whose
-        # sources are invented is worse than no answer here, because the
-        # citations are the entire reason to believe it: strip them and what
-        # remains is the base model guessing about pandas, which is precisely
-        # what this system exists not to do.
+        # Discarded, not flagged and returned. Nobody reads a boolean next to
+        # fluent prose, and the citations are the entire reason to believe an
+        # answer: strip them and what remains is the base model guessing.
         return Answer(
             question=recall.question,
             answered=False,

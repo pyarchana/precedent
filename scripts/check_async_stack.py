@@ -1,4 +1,4 @@
-"""Day 1 go/no-go: does the async stack actually work against CockroachDB?
+"""Go/no-go: does the async stack actually work against CockroachDB?
 
 Answers, with evidence rather than assertion:
   1. Does SQLAlchemy async + asyncpg connect, write and read over a session?

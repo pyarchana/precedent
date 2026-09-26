@@ -31,15 +31,10 @@ log = logging.getLogger(__name__)
 API = "https://api.github.com"
 ACCEPT = "application/vnd.github+json"
 
-# GitHub rejects a JWT that lives longer than ten minutes, and it measures that
-# from `iat`, not from now. The backdating therefore spends part of the
-# allowance: 540 plus 60 is exactly 600, sitting on the boundary, which is the
-# kind of thing that works until GitHub rounds the other way. These two must sum
-# to comfortably under 600, and a test asserts it.
-#
-# The backdating itself is not optional. A JWT issued one second in GitHub's
-# future is refused outright, and the 401 that comes back looks like a bad key
-# rather than a clock a second fast.
+# GitHub rejects a JWT older than ten minutes, measured from `iat`, so the
+# backdating spends part of the allowance and these must sum to well under 600.
+# A test asserts it. The backdating is not optional: a JWT one second in
+# GitHub's future is refused with a 401 that looks like a bad key.
 JWT_LIFETIME_SECONDS = 480
 JWT_BACKDATE_SECONDS = 60
 

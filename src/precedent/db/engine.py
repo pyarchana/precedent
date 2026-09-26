@@ -1,22 +1,9 @@
 """Async engine construction for CockroachDB.
 
-CockroachDB speaks the Postgres wire protocol, but the stock `postgresql+asyncpg`
-dialect still cannot drive it: on connect it calls `_get_server_version_info`,
-which parses `version()` with a Postgres-shaped regex and raises AssertionError
-on "CockroachDB CCL v26.2.4 ...". The failure is at connection time, so nothing
-works at all, not just version-dependent features.
-
-`sqlalchemy-cockroachdb` 2.0.4 provides `cockroachdb+asyncpg`, which fixes the
-version parsing and adjusts reflection and DDL compilation. It is a real async
-dialect, not a sync shim.
-
-Two DSN details bite when moving from a local node to CockroachDB Cloud:
-
-  * asyncpg does not accept libpq's `sslmode`. SQLAlchemy translates the common
-    values, but `verify-full` needs a real SSL context pointed at the cluster CA.
-  * Cloud Serverless routes by cluster name in the `options` startup parameter
-    (`--cluster=<name>`). That has to be passed through connect_args, not left
-    in the URL query string.
+The stock `postgresql+asyncpg` dialect cannot drive CockroachDB at all: it
+parses `version()` with a Postgres-shaped regex and raises at connection time.
+`cockroachdb+asyncpg` is a real async dialect and handles it. That, and the two
+DSN details that bite on Cloud, are in docs/ingest.md.
 """
 
 from __future__ import annotations
@@ -41,9 +28,8 @@ class ParsedDsn:
 def _split(dsn: str) -> tuple[Any, dict[str, Any], dict[str, str]]:
     """Common work: clean the string, pull out the libpq-only parameters.
 
-    Surrounding whitespace and quotes are stripped because a DSN pasted into
-    a .env file frequently arrives wrapped in them, and the resulting parse
-    failure ("scheme is expected to be postgresql") points nowhere useful.
+    Quotes and whitespace are stripped because a DSN pasted into .env arrives
+    wrapped in them, and the parse failure it causes points nowhere useful.
     """
     cleaned = dsn.strip().strip('"').strip("'")
     if not cleaned.startswith(("postgresql://", "postgres://")):
@@ -86,10 +72,10 @@ def parse_dsn(dsn: str) -> ParsedDsn:
 
 
 def asyncpg_dsn(dsn: str) -> ParsedDsn:
-    """The same, for code that drives asyncpg directly rather than through SQLAlchemy.
+    """The same, for code driving asyncpg directly rather than through SQLAlchemy.
 
-    Migrations need this: asyncpg rejects libpq's `sslmode` outright, so the
-    parameter has to become an SSL context passed as a keyword argument.
+    Migrations need it: asyncpg rejects `sslmode`, so it has to become a
+    context passed as a keyword argument.
     """
     parsed, connect_args, keep = _split(dsn)
     url = urlunparse(parsed._replace(scheme="postgresql", query=urlencode(keep)))
@@ -99,8 +85,8 @@ def asyncpg_dsn(dsn: str) -> ParsedDsn:
 def create_engine(dsn: str, **kwargs: Any) -> AsyncEngine:
     """An engine sized for a long-lived process, not for Lambda.
 
-    Lambda gets its own construction on Day 17; a pool that outlives a frozen
-    execution context is the classic way to break serverless plus Postgres.
+    Lambda builds its own: a pool that outlives a frozen execution context is
+    the classic way to break serverless plus Postgres.
     """
     parsed = parse_dsn(dsn)
     options: dict[str, Any] = {

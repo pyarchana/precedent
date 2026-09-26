@@ -1,16 +1,9 @@
-"""Load the derived maintainer list.
+"""Load the derived maintainer list, produced by `scripts/derive_maintainers.py`.
 
-Kept out of `normalize.py` so that module stays free of file access and remains
-testable as pure functions. The list itself is produced by
-`scripts/derive_maintainers.py` and checked in at `config/maintainers.yaml`,
-with the counts that justified each entry, so a reader can disagree with it.
-
-Loading is deliberately strict about one thing and forgiving about another. A
-missing file is fine and yields an empty set, because a fresh repository has no
-list yet and classification by association still works. A file that exists but
-names a different repository is an error, because silently applying pandas'
-maintainers to another project would corrupt the corpus in a way nothing
-downstream could detect.
+Kept out of `normalize.py` so that module stays free of file access. A missing
+file yields an empty set, since a fresh repository has none and classification
+by association still works. A file naming a different repository raises, because
+applying pandas' maintainers elsewhere corrupts the corpus undetectably.
 """
 
 from __future__ import annotations
@@ -24,16 +17,9 @@ from precedent.config import REPO_ROOT
 
 log = logging.getLogger(__name__)
 
-# Two layouts, because the file is read in both and they nest differently.
-#
-# In a checkout the package sits at `src/precedent/`, so the repository root is
-# two levels above it and the list is at `<root>/config/maintainers.yaml`.
-#
-# In the Lambda package there is no `src/`: the package is unpacked directly
-# into `/var/task/precedent/`, and `REPO_ROOT`, computed as `parents[2]` of
-# `config.py`, resolves to `/`. So the deployed list is looked for beside the
-# package instead. Getting this wrong does not raise; it returns an empty set
-# and quietly drops every maintainer who has left the project.
+# Two layouts. A checkout nests the package under `src/`; the Lambda package
+# unpacks it straight into `/var/task/`, where `REPO_ROOT` resolves to `/`.
+# Getting this wrong does not raise, it silently drops every former maintainer.
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 
 CANDIDATE_PATHS = (
