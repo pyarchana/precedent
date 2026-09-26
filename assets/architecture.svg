@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 730" width="1000" height="730" role="img" aria-label="Precedent architecture: an offline ingest pipeline writes review comments and rules into CockroachDB, and an AWS Lambda serves pull request comments, questions and maintainer corrections from it.">
+  <style>
+    .bg    { fill: #ffffff; }
+    .card  { fill: #f6f8fa; stroke: #d0d7de; stroke-width: 1; }
+    .t     { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; fill: #1f2328; }
+    .mono  { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #1f2328; }
+    .title { font-size: 21px; font-weight: 600; }
+    .sub   { font-size: 13px; fill: #656d76; }
+    .lane  { font-size: 11px; font-weight: 600; fill: #656d76; letter-spacing: 1.1px; }
+    .name  { font-size: 13px; font-weight: 600; }
+    .meta  { font-size: 11px; fill: #656d76; }
+    .row   { font-size: 11.5px; }
+    .arrow { stroke: #8c959f; stroke-width: 1.6; fill: none; marker-end: url(#a); }
+    .note  { font-size: 11px; fill: #656d76; font-style: italic; }
+  </style>
+
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8c959f"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1000" height="730"/>
+
+  <text class="t title" x="40" y="44">Precedent architecture</text>
+  <text class="t sub"   x="40" y="66">One database holds the knowledge and the operational state, so they cannot disagree.</text>
+
+  <!-- ================= CockroachDB ================= -->
+  <rect x="730" y="112" width="235" height="530" rx="8" fill="#ffffff" stroke="#6933FF" stroke-width="2"/>
+  <text class="t name" x="748" y="140" font-size="15">CockroachDB</text>
+  <text class="t meta" x="748" y="157">ap-south-1, Basic tier</text>
+
+  <text class="t lane" x="748" y="186">KNOWLEDGE</text>
+  <rect class="card" x="746" y="196" width="203" height="26" rx="4"/>
+  <text class="mono" x="756" y="213" font-size="11">review_comments</text>
+  <text class="t meta" x="939" y="213" text-anchor="end">86,317</text>
+  <rect class="card" x="746" y="226" width="203" height="26" rx="4"/>
+  <text class="mono" x="756" y="243" font-size="11">rules</text>
+  <text class="t meta" x="939" y="243" text-anchor="end">298</text>
+  <rect class="card" x="746" y="256" width="203" height="26" rx="4"/>
+  <text class="mono" x="756" y="273" font-size="11">rule_evidence</text>
+  <rect class="card" x="746" y="286" width="203" height="26" rx="4"/>
+  <text class="mono" x="756" y="303" font-size="11">contributors</text>
+
+  <text class="t meta" x="748" y="332" font-size="10.5">Embeddings sit in these tables.</text>
+  <text class="t meta" x="748" y="346" font-size="10.5">No second vector store to sync.</text>
+
+  <text class="t lane" x="748" y="382">OPERATIONAL</text>
+  <rect class="card" x="746" y="392" width="203" height="26" rx="4"/>
+  <text class="mono" x="756" y="409" font-size="11">pr_reviews</text>
+  <text class="t meta" x="939" y="409" text-anchor="end">no dupes</text>
+  <rect class="card" x="746" y="422" width="203" height="26" rx="4"/>
+  <text class="mono" x="756" y="439" font-size="11">api_usage</text>
+  <text class="t meta" x="939" y="439" text-anchor="end">spend cap</text>
+  <rect class="card" x="746" y="452" width="203" height="26" rx="4"/>
+  <text class="mono" x="756" y="469" font-size="11">sessions</text>
+  <rect class="card" x="746" y="482" width="203" height="26" rx="4"/>
+  <text class="mono" x="756" y="499" font-size="11">corrections</text>
+
+  <text class="t meta" x="748" y="528" font-size="10.5">Both racy tables are written</text>
+  <text class="t meta" x="748" y="542" font-size="10.5">under Serializable, with 40001</text>
+  <text class="t meta" x="748" y="556" font-size="10.5">retries handled explicitly.</text>
+
+  <!-- ================= Lane 1: ingest ================= -->
+  <text class="t lane" x="40" y="106">BUILDING THE MEMORY  ·  RUNS ONCE PER REPOSITORY</text>
+
+  <rect class="card" x="40"  y="126" width="140" height="56" rx="6"/>
+  <text class="t name" x="110" y="149" text-anchor="middle">GitHub GraphQL</text>
+  <text class="t meta" x="110" y="166" text-anchor="middle">21,762 pull requests</text>
+
+  <rect x="215" y="126" width="140" height="56" rx="6" fill="#fff8f0" stroke="#FF9900" stroke-width="1.5"/>
+  <text class="t name" x="285" y="149" text-anchor="middle">S3</text>
+  <text class="t meta" x="285" y="166" text-anchor="middle">3,801 gzip pages</text>
+
+  <rect class="card" x="390" y="126" width="140" height="56" rx="6"/>
+  <text class="t name" x="460" y="149" text-anchor="middle">transform</text>
+  <text class="t meta" x="460" y="166" text-anchor="middle">normalize, dedupe</text>
+
+  <rect class="card" x="565" y="126" width="140" height="56" rx="6"/>
+  <text class="t name" x="635" y="149" text-anchor="middle">embed</text>
+  <text class="t meta" x="635" y="166" text-anchor="middle">1536-dim vectors</text>
+
+  <path class="arrow" d="M180,154 L211,154"/>
+  <path class="arrow" d="M355,154 L386,154"/>
+  <path class="arrow" d="M530,154 L561,154"/>
+  <path class="arrow" d="M705,154 L726,154"/>
+
+  <text class="t note" x="285" y="200" text-anchor="middle">raw first, so the transform can be replayed</text>
+
+  <rect class="card" x="390" y="238" width="140" height="56" rx="6"/>
+  <text class="t name" x="460" y="261" text-anchor="middle">cluster</text>
+  <text class="t meta" x="460" y="278" text-anchor="middle">by topic</text>
+
+  <rect class="card" x="565" y="238" width="140" height="56" rx="6"/>
+  <text class="t name" x="635" y="261" text-anchor="middle">extract rules</text>
+  <text class="t meta" x="635" y="278" text-anchor="middle">confidence scored</text>
+
+  <path class="arrow" d="M460,182 L460,234"/>
+  <path class="arrow" d="M530,266 L561,266"/>
+  <path class="arrow" d="M705,266 L726,266"/>
+
+  <line x1="40" y1="330" x2="706" y2="330" stroke="#d0d7de" stroke-width="1" stroke-dasharray="5 5"/>
+
+  <!-- ================= Lane 2: serve ================= -->
+  <text class="t lane" x="40" y="366">ANSWERING  ·  RUNS PER REQUEST</text>
+
+  <rect class="card" x="40" y="386" width="170" height="46" rx="6"/>
+  <text class="mono" x="125" y="404" font-size="11" text-anchor="middle">pull_request.opened</text>
+  <text class="t meta" x="125" y="421" text-anchor="middle">nobody asked it</text>
+
+  <rect class="card" x="40" y="448" width="170" height="46" rx="6"/>
+  <text class="t name" x="125" y="466" text-anchor="middle">a question</text>
+  <text class="t meta" x="125" y="483" text-anchor="middle">web page or CLI</text>
+
+  <rect class="card" x="40" y="510" width="170" height="46" rx="6"/>
+  <text class="mono" x="125" y="528" font-size="11" text-anchor="middle">@precedent actually</text>
+  <text class="t meta" x="125" y="545" text-anchor="middle">a maintainer corrects it</text>
+
+  <rect x="255" y="380" width="200" height="200" rx="8" fill="#fff8f0" stroke="#FF9900" stroke-width="2"/>
+  <text class="t name" x="273" y="406" font-size="15">AWS Lambda</text>
+  <text class="t meta" x="273" y="423">Function URL, 1024 MB</text>
+
+  <rect class="card" x="271" y="436" width="168" height="28" rx="4"/>
+  <text class="t row" x="283" y="454">1 · verify HMAC signature</text>
+  <rect class="card" x="271" y="470" width="168" height="28" rx="4"/>
+  <text class="t row" x="283" y="488">2 · retrieve from memory</text>
+  <rect class="card" x="271" y="504" width="168" height="28" rx="4"/>
+  <text class="t row" x="283" y="522">3 · verify every citation</text>
+
+  <text class="t meta" x="273" y="551" font-size="10.5">A citation that does not resolve</text>
+  <text class="t meta" x="273" y="565" font-size="10.5">suppresses the whole answer.</text>
+
+  <path class="arrow" d="M210,409 L251,409"/>
+  <path class="arrow" d="M210,471 L251,471"/>
+  <path class="arrow" d="M210,533 L251,533"/>
+
+  <rect class="card" x="500" y="424" width="150" height="56" rx="6"/>
+  <text class="t name" x="575" y="447" text-anchor="middle">OpenAI</text>
+  <text class="t meta" x="575" y="464" text-anchor="middle">gpt-4o-mini</text>
+
+  <path class="arrow" d="M455,452 L496,452"/>
+  <path class="arrow" d="M455,524 L726,524"/>
+  <text class="t meta" x="590" y="516" text-anchor="middle">vector search, then the claim and the spend</text>
+
+  <rect class="card" x="255" y="612" width="200" height="46" rx="6"/>
+  <text class="t name" x="355" y="630" text-anchor="middle">a cited comment</text>
+  <text class="t meta" x="355" y="647" text-anchor="middle">posted back to GitHub</text>
+
+  <path class="arrow" d="M355,580 L355,608"/>
+
+  <text class="t note" x="40" y="694">Identity comes from GitHub, not from a login: signed deliveries make sender.login trustworthy, so this application never handles a password,</text>
+  <text class="t note" x="40" y="710">runs an OAuth flow, or holds a session.</text>
+</svg>

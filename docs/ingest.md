@@ -1,0 +1,96 @@
+# Ingest and database
+
+Pulling a repository's review history in, and the CockroachDB specifics that
+cost time to find.
+
+## Running the ingest
+
+The ingest stages raw GitHub GraphQL responses to disk before anything parses them,
+so the transform can be replayed against a changed schema without re-hitting the API.
+It needs no database and no S3 bucket to start.
+
+```bash
+uv venv --python 3.11
+uv pip install -e ".[dev]"
+cp .env.example .env   # optional; falls back to `gh auth token`
+```
+
+Smoke test (two pages, then stop):
+
+```bash
+python -m precedent.ingest.run --max-pages 2 -v
+```
+
+Full run. It resumes from its checkpoint, so killing it is safe:
+
+```bash
+python -m precedent.ingest.run --log-file logs/ingest.log
+```
+
+Raw pages land in `data/raw/<owner>__<repo>/pr_pages/page_NNNNNN.json.gz`, with
+resume state in `checkpoint.json` alongside them. Neither is committed.
+
+## Database
+
+A local single-node cluster is enough for schema work:
+
+```bash
+docker run -d --name crdb-precedent -p 26257:26257 -p 8081:8080 cockroachdb/cockroach:latest start-single-node --insecure --store=type=mem,size=2GiB
+```
+
+Apply the schema:
+
+```bash
+python -m precedent.db.migrate --dsn "postgresql://root@localhost:26257/precedent?sslmode=disable" --create-db
+```
+
+Confirm the async stack works against whatever cluster you pointed at:
+
+```bash
+python scripts/check_async_stack.py --dsn "postgresql://root@localhost:26257/precedent?sslmode=disable"
+```
+
+## Bulk loading embeddings
+
+Drop the vector index before a large backfill and rebuild it afterwards. Maintaining
+it incrementally across hundreds of thousands of single-row updates costs far more
+than building it once at the end. Measured on this corpus, embedding 1,024 comments
+into a 316,000 row table:
+
+| | rows/sec |
+| --- | --- |
+| Vector index present, 3 requests in flight | 9.0 |
+| Vector index dropped, 3 requests in flight | 25.2 |
+| Vector index dropped, 6 requests in flight | 57.8 |
+
+Between them that is the difference between nine hours and eighty minutes.
+
+```bash
+docker exec crdb-precedent ./cockroach sql --insecure --database=precedent --execute "DROP INDEX review_comments@idx_rc_embedding;"
+```
+
+```bash
+docker exec crdb-precedent ./cockroach sql --insecure --database=precedent --execute "CREATE VECTOR INDEX idx_rc_embedding ON review_comments (repo_id, embedding);"
+```
+
+The index definition lives in migration 0002. Dropping it for a backfill is an
+operational step, not a schema change, so it is done directly rather than by
+adding a migration.
+
+## Driver notes
+
+Use `sqlalchemy-cockroachdb`, not the stock `postgresql+asyncpg` dialect. SQLAlchemy's
+Postgres dialect parses `version()` with a Postgres-shaped regex during connection
+setup and raises `AssertionError` on `CockroachDB CCL v26.2.4 ...`, so nothing works at
+all, not merely version-gated features. `cockroachdb+asyncpg` is a genuine async
+dialect and passes the same checks.
+
+`VECTOR` columns come back from the driver as strings, not sequences, and have to be
+parsed on read and rendered as `[1,2,3]` on write. In `text()` queries, cast with
+`CAST(:v AS VECTOR(n))` rather than `:v::VECTOR`, because the bind-parameter parser
+reads the second colon as the start of another parameter.
+
+## Related
+
+- [Architecture](architecture.md), for what the ingested comments become
+- [Deployment](deployment.md)
