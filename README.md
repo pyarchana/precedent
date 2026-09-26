@@ -33,16 +33,13 @@ maintainer can correct it in place, and every later answer reflects that.
 
 Target repository: [pandas-dev/pandas](https://github.com/pandas-dev/pandas).
 
-```
-contributor   opens a PR     ->   the agent reads the changed paths and posts
-                                  the conventions anchored to those files
-                                    |
-maintainer    "@precedent    ->   verified as a maintainer by GitHub, no login,
-               actually X"        the contradicted rule is retired, and so are
-                                  its near duplicates
-                                    |
-contributor   asks           ->   the corrected answer, citing the correction
-```
+## Correct it once, and it stays corrected
+
+![A terminal session: asking where the GitHub issue number goes in a test returns an answer citing pull request 65052. A maintainer corrects it. The same question then returns the corrected answer, citing the correction instead.](assets/demo.gif)
+
+Ask, correct, ask again. The rule the first answer used is retired, the
+correction replaces it, and the second answer cites the maintainer rather than
+the pull request it used to. Nothing was re-ingested and nothing was retrained.
 
 ## It comments on pull requests without being asked
 
