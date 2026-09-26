@@ -70,6 +70,7 @@ class RejectReason:
     BOT_AUTHOR = "bot_author"
     EMPTY_BODY = "empty_body"
     NO_AUTHOR = "no_author"
+    NO_TIMESTAMP = "no_timestamp"
     PR_TEMPLATE = "pr_template"
 
 
@@ -127,7 +128,9 @@ def is_maintainer(
     """
     if (association or "").upper() in MAINTAINER_ASSOCIATIONS:
         return True
-    return bool(login) and login.lower() in known_maintainers
+    if not login:
+        return False
+    return login.lower() in known_maintainers
 
 
 def _parse_ts(value: str) -> datetime:
@@ -184,6 +187,11 @@ def _emit(
 
     if is_pr_template(text):
         return RejectRecord(node_id, RejectReason.PR_TEMPLATE, pr_number, login)
+
+    # Rejected, not parsed. This used to reach `_parse_ts` and raise, failing
+    # the transform of the whole corpus over one malformed node.
+    if not created_at:
+        return RejectRecord(node_id, RejectReason.NO_TIMESTAMP, pr_number, login)
 
     association = node.get("authorAssociation") or "NONE"
     return CommentRecord(

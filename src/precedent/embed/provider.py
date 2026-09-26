@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 import httpx
 
@@ -31,6 +31,10 @@ MAX_TOKENS = 8_000
 
 # Fallback only, for when tiktoken is unavailable. Deliberately pessimistic.
 MAX_CHARS = 12_000
+
+# Any, because tiktoken is optional and excluded from the Lambda package, so
+# there is no import to take a type from.
+_ENCODING: Any
 
 try:
     import tiktoken
@@ -79,6 +83,10 @@ class EmbeddingProvider(Protocol):
     dimensions: int
 
     async def embed(self, texts: list[str]) -> list[list[float]]: ...
+
+    # `embed/run.py` calls this in a `finally`. Undeclared, a second provider
+    # would type check and then fail at shutdown.
+    async def aclose(self) -> None: ...
 
 
 class OpenAIEmbeddings:

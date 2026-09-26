@@ -179,7 +179,9 @@ def speaks_for_project(
     """
     if (association or "").upper() in MAINTAINER_ASSOCIATIONS:
         return True
-    return bool(login) and login.lower() in known_maintainers
+    if not login:
+        return False
+    return login.lower() in known_maintainers
 
 
 def parse_event(event: str, payload: dict) -> dict | None:

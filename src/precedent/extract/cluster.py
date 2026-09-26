@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -104,7 +105,7 @@ class ClusterComment:
     pr_number: int
     author: str | None
     file_path: str | None
-    created_at: object
+    created_at: datetime | None
     body: str
     distance: float
 

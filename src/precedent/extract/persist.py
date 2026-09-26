@@ -318,7 +318,9 @@ async def persist_rule(
 
     distance = float(nearest["distance"]) if nearest is not None else None
 
-    if nearest is not None and distance <= consider_distance:
+    # Both checked although one implies the other, because that implication
+    # lives in two variables rather than in the code.
+    if nearest is not None and distance is not None and distance <= consider_distance:
         if judge is None:
             log.warning(
                 "no judge available; inserting rather than merging at distance %.3f: %s",

@@ -50,6 +50,9 @@ dev = [
     "pytest-asyncio>=0.23",
     "ruff>=0.5",
     "pyyaml>=6.0",
+    "mypy>=1.11",
+    # Without these, `transform/maintainers.py` is unanalysable.
+    "types-PyYAML>=6.0",
 ]
 
 [build-system]
@@ -66,3 +69,22 @@ src = ["src"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+# Not --strict. Strict reports 97, nearly all missing annotations on internal
+# helpers, and a check nobody reaches zero on is a check that gets ignored.
+# Defaults found four real bugs. Tighten one flag at a time, from zero.
+[tool.mypy]
+python_version = "3.11"
+files = ["src/precedent"]
+# 28 of the 44 findings are in app.py, nearly all from `Deps` typing its fields
+# `object`. Fixing it means typing that container and touching every route in
+# the module that serves the live demo, which is also the least test-covered
+# one here. Worth doing deliberately rather than for an error count.
+exclude = "src/precedent/api/app\\.py"
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+# No py.typed marker. Only the migration driver imports it.
+module = ["asyncpg.*"]
+ignore_missing_imports = true

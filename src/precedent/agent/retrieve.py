@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -60,6 +62,10 @@ MAX_PROMOTED_STATED = 2
 # How many rules to rank before taking `rule_k`. Wide enough that a stated rule
 # outside the top k is still seen; the correction above needed thirteen.
 RANKING_POOL = 20
+
+# One row from SEARCH_RULES. Keyed `Any`, not `str`: SQLAlchemy's RowMapping is
+# keyed by a union, so `Mapping[str, Any]` would exclude what this actually gets.
+RuleRow = Mapping[Any, Any]
 
 
 @dataclass(slots=True)
@@ -160,7 +166,7 @@ EVIDENCE_FOR_RULES = text("""
     """).bindparams(bindparam("rule_ids", expanding=True))
 
 
-def rank_rules(rows: list, rule_k: int) -> list:
+def rank_rules(rows: Sequence[RuleRow], rule_k: int) -> list[RuleRow]:
     """Take `rule_k` rules, letting what a maintainer said in ahead of distance.
 
     Rows arrive ordered by distance and already filtered to active rules within
@@ -175,30 +181,24 @@ def rank_rules(rows: list, rule_k: int) -> list:
     # Sorted here rather than trusted. The SQL does order by distance, but this
     # function's whole job is deciding what "nearest" loses to, and a caller
     # that hands over an unsorted pool would silently get its worst rules.
-    rows = sorted(rows, key=lambda r: float(r["distance"]))
+    ordered = sorted(rows, key=lambda r: float(r["distance"]))
 
-    # Filtered here for the same reason, and it matters more than the sort.
-    # SEARCH_RULES does exclude superseded rules, but promotion below exists
-    # precisely to lift a stated rule past the distance ordering, and a
-    # correction that was itself later corrected is both stated and retired.
-    # One loosened WHERE clause would therefore promote a retired rule over the
-    # one that replaced it, and the answer would cite a convention the project
-    # abandoned, with a maintainer's name on it. Rows with no status column are
-    # treated as active, which is what a caller that does not select it means.
-    rows = [r for r in rows if str(r.get("status", "active")) == "active"]
+    # And filtered, because promotion below would otherwise lift a retired
+    # correction over the rule that replaced it. Missing status means active.
+    ordered = [r for r in ordered if str(r.get("status", "active")) == "active"]
 
-    stated = [r for r in rows if str(r["origin"]) in STATED_ORIGINS]
+    stated = [r for r in ordered if str(r["origin"]) in STATED_ORIGINS]
     if not stated:
-        return rows[:rule_k]
+        return ordered[:rule_k]
 
     promoted = stated[:MAX_PROMOTED_STATED]
     promoted_ids = {r["id"] for r in promoted}
-    remainder = [r for r in rows if r["id"] not in promoted_ids]
+    remainder = [r for r in ordered if r["id"] not in promoted_ids]
 
     chosen = promoted + remainder[: max(rule_k - len(promoted), 0)]
     chosen.sort(key=lambda r: float(r["distance"]))
 
-    if any(r["id"] not in {x["id"] for x in rows[:rule_k]} for r in promoted):
+    if any(r["id"] not in {x["id"] for x in ordered[:rule_k]} for r in promoted):
         log.info(
             "promoted %d stated rule(s) that distance alone would not have retrieved",
             len(promoted),
@@ -248,17 +248,17 @@ async def recall(
             .all()
         )
 
-        rows = rank_rules(rows, rule_k)
+        ranked = rank_rules(rows, rule_k)
 
         by_rule: dict[str, list[SearchHit]] = defaultdict(list)
-        if rows:
+        if ranked:
             evidence = (
                 (
                     await conn.execute(
                         EVIDENCE_FOR_RULES,
                         {
                             "repo_id": repo_id,
-                            "rule_ids": [str(r["id"]) for r in rows],
+                            "rule_ids": [str(r["id"]) for r in ranked],
                             "per_rule": per_rule_citations,
                         },
                     )
@@ -295,7 +295,7 @@ async def recall(
                 origin=str(row["origin"]),
                 citations=by_rule.get(str(row["id"]), []),
             )
-            for row in rows
+            for row in ranked
         ]
 
     # Episodic memory as well, for questions the rules do not cover: a

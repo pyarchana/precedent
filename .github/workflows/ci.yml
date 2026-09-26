@@ -44,6 +44,11 @@ jobs:
           ruff check .
           ruff format --check .
 
+      # Settings and exclusions live in pyproject.toml, so this matches what a
+      # bare `mypy` does locally.
+      - name: Types
+        run: mypy
+
       - name: Test
         run: pytest -q
 
