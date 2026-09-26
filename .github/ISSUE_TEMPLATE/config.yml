@@ -1,9 +1,9 @@
 blank_issues_enabled: true
 
 contact_links:
-  - name: What is already planned
-    url: https://github.com/pyarchana/precedent/blob/main/ROADMAP.md
-    about: Including what is blocked on budget, and what is deliberately not planned.
   - name: How the memory model works
     url: https://github.com/pyarchana/precedent/blob/main/README.md
     about: Read this before reporting that it did not answer something.
+  - name: Why a correction retires a rule instead of deleting it
+    url: https://github.com/pyarchana/precedent/blob/main/docs/architecture.md
+    about: The correction semantics, with the two diagrams.

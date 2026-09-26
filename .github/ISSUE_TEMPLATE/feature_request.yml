@@ -6,9 +6,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        Worth a look at [ROADMAP.md](../blob/main/ROADMAP.md) first. Several
-        obvious things are already there, including what is blocked on budget
-        rather than on ideas, and two deliberate non-goals.
+        Two things this deliberately does not do, before you write it up. It
+        does not replace linters: deterministic rules belong in `ruff`, `mypy`
+        and CI, and this is for the conventions that only exist in people's
+        heads. And it does not fall back on the base model when memory is
+        empty, because refusing is the feature.
 
   - type: textarea
     id: problem

@@ -169,7 +169,6 @@ demo is a public URL in front of a paid model, are in
 | [Failure modes](docs/failure-modes.md) | Every failure that actually happened, and what handles it |
 | [Deployment](docs/deployment.md) | Local, Lambda, and the two things Mangum's lifespan behaviour broke |
 | [Ingest and database](docs/ingest.md) | GraphQL staging, bulk embedding, CockroachDB driver notes |
-| [Roadmap](ROADMAP.md) | What is next, and what is blocked on budget rather than on ideas |
 
 ## License
 

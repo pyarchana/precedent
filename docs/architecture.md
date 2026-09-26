@@ -8,7 +8,7 @@ request, in one Lambda, against one database.
 The six stores and the tables behind them are listed in the
 [README](../README.md#memory-model). Every table is keyed on `repo_id`, so the
 system is multi-tenant from the schema up. It has never been run with a second
-tenant, which is a [known gap](../ROADMAP.md), not a claim.
+tenant, so that is a property of the schema rather than a tested claim.
 
 ## What a correction does
 
