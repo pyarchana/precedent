@@ -67,6 +67,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
+from precedent import obs
 from precedent.agent.answer import answer_question, citation_label
 from precedent.agent.correct import UnusableCorrection, apply_correction
 from precedent.agent.retrieve import recall
@@ -187,6 +188,7 @@ async def ensure_deps() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    obs.configure_logging()
     await ensure_deps()
     yield
     # Nothing is torn down under Lambda. The lifespan ends when the invocation
@@ -472,44 +474,81 @@ async def health() -> dict:
     return body
 
 
+@app.get("/metrics")
+async def metrics() -> dict:
+    """Latency and outcomes for this container, plus today's durable spend.
+
+    Not a global total: Lambda recycles execution environments.
+    """
+    body = obs.snapshot()
+    if deps.engine is not None:
+        try:
+            body["spend_today_usd"] = round(await spend_today(), 4)
+            body["budget_usd"] = get_settings().api_budget_usd
+        except Exception as exc:  # noqa: BLE001 - metrics must not fail the way the app can
+            body["spend_today_usd"] = f"unavailable: {type(exc).__name__}"
+    return body
+
+
 @app.post("/ask", response_model=AskResponse)
 async def ask(body: AskRequest, request: Request) -> AskResponse:
+    with obs.request("ask") as rec:
+        return await _ask(body, request, rec)
+
+
+async def _ask(body: AskRequest, request: Request, rec: obs.Request) -> AskResponse:
     require_ready()
     enforce_rate_limit(request)
     reservation = await reserve_budget()
 
-    memory = await recall(deps.engine, deps.provider, repo_id=deps.repo_id, question=body.question)
+    with rec.stage("recall"):
+        memory = await recall(
+            deps.engine, deps.provider, repo_id=deps.repo_id, question=body.question
+        )
+    rec.note(rules=len(memory.rules), comments=len(memory.comments))
 
     before = deps.chat.spent
     try:
-        result = await answer_question(deps.chat, memory)
+        with rec.stage("model"):
+            result = await answer_question(deps.chat, memory)
     except BudgetExhausted as exc:
         # Deliberately not degraded into an unsourced answer. An answer this
         # system cannot attribute is worse than no answer.
+        rec.outcome("budget_exhausted")
         raise HTTPException(
             status_code=503,
             detail="This demo's model budget is spent. Memory is still readable at /rules.",
         ) from exc
     except QuotaExhausted as exc:
+        rec.outcome("quota_exhausted")
         raise HTTPException(status_code=503, detail="The model account has no credit.") from exc
     finally:
         # In `finally` because a call that raised may still have spent money,
         # and because the reservation has to be released either way.
         await settle_budget(reservation, deps.chat.spent - before)
 
-    session_id = body.session_id or await open_session(
-        deps.engine, repo_id=deps.repo_id, contributor_login=body.contributor
-    )
-    turn = await record_turn(
-        deps.engine,
-        repo_id=deps.repo_id,
-        session_id=session_id,
-        question=body.question,
-        answer=result.text,
-        rule_ids=result.rule_ids,
-        comment_ids=result.comment_ids,
-        answered_from_memory=result.answered,
-    )
+    # Separate outcomes: a refusal and a verification failure are not the same.
+    if not result.is_trustworthy:
+        rec.outcome("citations_unverified")
+    elif not result.answered:
+        rec.outcome("no_memory" if memory.is_empty else "declined")
+    # cited_prs, not cited: an answer built on a correction cites no PR.
+    rec.note(spent_usd=round(deps.chat.spent - before, 5), cited_prs=len(result.cited_prs))
+
+    with rec.stage("persist"):
+        session_id = body.session_id or await open_session(
+            deps.engine, repo_id=deps.repo_id, contributor_login=body.contributor
+        )
+        turn = await record_turn(
+            deps.engine,
+            repo_id=deps.repo_id,
+            session_id=session_id,
+            question=body.question,
+            answer=result.text,
+            rule_ids=result.rule_ids,
+            comment_ids=result.comment_ids,
+            answered_from_memory=result.answered,
+        )
 
     return AskResponse(
         answer=result.text,
@@ -670,7 +709,7 @@ async def rules(request: Request, limit: int = 20) -> dict:
     }
 
 
-async def review_pull_request(settings, opened: dict) -> dict:
+async def review_pull_request(settings, opened: dict, rec: obs.Request) -> dict:
     """A pull request opened and nobody asked us anything.
 
     Every response here is a 200, including the ones that do nothing. GitHub
@@ -685,20 +724,24 @@ async def review_pull_request(settings, opened: dict) -> dict:
     reservation = await reserve_budget()
     before = deps.chat.spent
     try:
-        decision = await act_on_pull_request(
-            deps.engine,
-            deps.provider,
-            deps.github,
-            repo_id=deps.repo_id,
-            parsed=opened,
-            trigger=settings.github_trigger,
-            source_repo=settings.repo_slug,
-        )
+        with rec.stage("review"):
+            decision = await act_on_pull_request(
+                deps.engine,
+                deps.provider,
+                deps.github,
+                repo_id=deps.repo_id,
+                parsed=opened,
+                trigger=settings.github_trigger,
+                source_repo=settings.repo_slug,
+            )
     except AlreadyHandled:
+        rec.outcome("redelivery")
         return {"status": "ignored", "reason": "already reviewed this pull request"}
     except (BudgetExhausted, QuotaExhausted):
+        rec.outcome("budget_exhausted")
         return {"status": "ignored", "reason": "model budget spent"}
     except GitHubError as exc:
+        rec.outcome("github_refused")
         # Most often a permission the installation was never granted, which no
         # retry fixes. Logged loudly because it is invisible from GitHub's side:
         # the delivery succeeded, the comment simply never appeared.
@@ -707,7 +750,10 @@ async def review_pull_request(settings, opened: dict) -> dict:
     finally:
         await settle_budget(reservation, deps.chat.spent - before)
 
+    rec.note(pr=decision.pr_number, files=len(decision.paths))
+
     if not decision.will_speak:
+        rec.outcome(f"silent:{decision.silent_reason or 'unknown'}")
         return {
             "status": "silent",
             "reason": decision.silent_reason,
@@ -715,6 +761,8 @@ async def review_pull_request(settings, opened: dict) -> dict:
             "files_considered": len(decision.paths),
         }
 
+    rec.outcome("commented")
+    rec.note(rules=len(decision.selected))
     return {
         "status": "commented",
         "pr_number": decision.pr_number,
@@ -759,7 +807,8 @@ async def github_webhook(request: Request) -> dict:
 
     opened = parse_pull_request(event, payload)
     if opened is not None:
-        return await review_pull_request(settings, opened)
+        with obs.request("webhook.review", event=event) as rec:
+            return await review_pull_request(settings, opened, rec)
 
     parsed = parse_event(event, payload)
     if parsed is None:

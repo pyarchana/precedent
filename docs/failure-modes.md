@@ -17,11 +17,28 @@ looking for one. None of them are hypothetical.
 | A dependency missing from the Lambda package | CI unzips the built artefact and imports the handler from it. Added after a deployment 502'd on `No module named 'yaml'` that every other check had passed. |
 | A maintainer who has since left the project | `author_association` reflects permissions held now, so it reports 74,077 of `jreback`'s comments as CONTRIBUTOR. Maintainer status is derived from review behaviour instead. |
 
-## Not covered
+## Seeing it go wrong
 
-Observability is structured logs and `/health`, with no metrics or alerting.
-Backups are whatever CockroachDB Cloud does by default. Both are where I would
-start if this ran for anyone but me.
+Every request writes one structured JSON line naming its route, how long each
+stage took, and a specific outcome. Lambda ships stdout to CloudWatch, so that
+is queryable with no metrics service and no cost. The outcomes matter as much as
+the timings: `declined`, `no_memory` and `citations_unverified` used to be the
+same refusal in the logs, which is what made the null-rationale bug take an
+afternoon to find rather than a minute.
+
+`/metrics` shows p50, p95 and outcome counts for whichever execution environment
+answers, plus today's spend, which is the one durable number because it lives in
+`api_usage`. It is not a global total and says so; Lambda runs several
+containers and recycles them.
+
+The first line it produced was already a finding: on a warm request, retrieval
+took 6.1s of 10.7s, twice what the model call cost.
+
+## Still not covered
+
+No alerting, and no aggregation across containers, so nothing pages anyone and
+the percentiles are per container. Backups are whatever CockroachDB Cloud does
+by default.
 
 ## Related
 
