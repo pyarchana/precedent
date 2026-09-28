@@ -81,15 +81,19 @@ The obvious rebuttal is that `gpt-4o-mini` has read a lot of pandas and might
 answer these questions on its own. So the same 29 evaluation questions went to
 both, and the answer is uncomfortable in one column and decisive in the other.
 
-| | correct | refused when it should | citations that resolve |
+| | correct | refusal | citations that resolve |
 | --- | --- | --- | --- |
-| Precedent | 8/24 (33%) | **4/5 (80%)** | **43/43 (100%)** |
-| `gpt-4o-mini` alone | 9/24 (38%) | 0/5 (0%) | 0/24 (0%) |
+| Precedent | 8/24 | recall 4/5, precision 4/7 | **43/43, 95% CI [92, 100]** |
+| `gpt-4o-mini` alone | 9/24 | recall 0/5 | **0/24, 95% CI [0, 14]** |
 
-**Memory did not make it more accurate.** The baseline scored one question
-higher, which on 24 questions is noise rather than a result. Three of
-Precedent's misses were refusals on questions it could have answered, so it is
-also over-cautious.
+**Memory did not make it more accurate.** Both systems answered the same
+questions, so the comparison is paired and McNemar's exact test applies: they
+disagree on 3 of 24 and **p = 1.00**. Allowing partial credit it gets worse
+rather than better, because there is no question Precedent got right that the
+baseline got wrong. It also over-refuses, turning down 3 questions it could have
+answered, which is the difference between its refusal recall and its precision.
+By tag it is weakest on typing (0/3) and deprecation (0/2), best on process
+(4/8) and testing (3/6).
 
 What it changed is whether the answer can be trusted. Five questions are
 deliberately unanswerable from review history. The baseline answered all five,
@@ -98,14 +102,17 @@ credentials. And of the 24 pull requests it cited, **none** resolve to a real
 discussion in the corpus: it is generating plausible five-digit numbers.
 Precedent cited 43 and every one resolves, because citations are verified
 against retrieved evidence before an answer is released and a failure suppresses
-the whole answer.
+the whole answer. Those two intervals do not overlap, which makes this the one
+comparison a sample of 29 can actually settle.
 
 Memory does not make the model smarter. It makes it accountable, which is the
 difference that matters when a contributor cannot tell a confident right answer
 from a confident invented one.
 
-Reproduce with `python scripts/run_baseline.py`, about a cent and a half.
-Full output in [`eval/baseline.json`](eval/baseline.json).
+Reproduce with `python scripts/run_baseline.py`, about a cent and a half, or
+re-read the recorded run for nothing with `python scripts/analyse_eval.py`,
+which is where every number above comes from. Raw output in
+[`eval/baseline.json`](eval/baseline.json).
 
 ## Memory model
 
