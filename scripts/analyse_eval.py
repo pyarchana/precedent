@@ -1,24 +1,8 @@
-"""Re-analyse the recorded evaluation, without spending anything.
+"""Re-analyse eval/baseline.json. No model calls, so rerunning costs nothing.
 
-`run_baseline.py` asks both systems the questions and writes `eval/baseline.json`.
-This reads that file back and says what it actually supports, which is a
-different job and a much cheaper one: no model is called, so this can be run as
-often as the reading is argued about.
-
-Three things it computes that the raw counts do not.
-
-**Whether 8/24 against 9/24 means anything.** Both systems answered the same
-questions, so the comparison is paired and McNemar's exact test applies: only
-the questions where the two disagree carry information. A headline difference of
-one can come from a single disagreement or from eleven.
-
-**Refusal precision as well as recall.** Refusing 4 of 5 unanswerable questions
-reads as 80% until you count the answerable questions that were also refused.
-Recall alone flatters a system that refuses everything.
-
-**Where it fails, by tag.** 29 questions across 14 tag combinations is too thin
-for a per-tag claim, so the counts are printed with their sample sizes attached
-rather than as rates.
+Computes what the raw counts do not: McNemar's exact test on the paired
+accuracy comparison, Wilson intervals, refusal precision as well as recall, and
+a per-tag breakdown. `--json` for the machine-readable form.
 """
 
 from __future__ import annotations
