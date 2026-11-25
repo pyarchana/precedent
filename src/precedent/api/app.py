@@ -176,13 +176,10 @@ async def ensure_deps() -> None:
         deps.engine = engine
         deps.error = ""
         log.info("ready: repo %s, budget $%.2f", settings.repo_slug, settings.api_budget_usd)
-    except Exception as exc:
-        # Deliberately not re-raised. Under Mangum a lifespan failure becomes a
-        # bare 502 with the reason only in CloudWatch, so a misconfigured
-        # deployment looks identical to a broken one. Recording it here lets
-        # /health say which environment variable is missing, which is the
-        # difference between a two minute fix and an afternoon.
-        deps.error = f"{type(exc).__name__}: {exc}"
+    except Exception:
+        # Keep exception details in server-side logs; /health returns only a
+        # generic error and separately lists any missing setting names.
+        deps.error = "startup failed; check server logs"
         log.exception("startup failed")
 
 
