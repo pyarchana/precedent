@@ -20,9 +20,11 @@ import asyncio
 import base64
 import binascii
 import logging
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from urllib.parse import quote
 
 import httpx
 
@@ -30,6 +32,19 @@ log = logging.getLogger(__name__)
 
 API = "https://api.github.com"
 ACCEPT = "application/vnd.github+json"
+
+
+def _safe_repo_path(repo: str) -> str:
+    """Validate a GitHub owner/repository name and encode each path segment."""
+    parts = repo.split("/")
+    if (
+        len(parts) != 2
+        or any(not part or part in {".", ".."} for part in parts)
+        or not re.fullmatch(r"[A-Za-z0-9-]+", parts[0])
+        or not re.fullmatch(r"[A-Za-z0-9._-]+", parts[1])
+    ):
+        raise GitHubError("invalid GitHub repository")
+    return "/".join(quote(part, safe="") for part in parts)
 
 # GitHub rejects a JWT older than ten minutes, measured from `iat`, so the
 # backdating spends part of the allowance and these must sum to well under 600.
@@ -176,12 +191,13 @@ class GitHubApp:
 
     async def changed_files(self, repo: str, pr_number: int) -> list[str]:
         """The paths a pull request touches, which is what decides what applies."""
+        safe_repo = _safe_repo_path(repo)
         paths: list[str] = []
         page = 1
         while len(paths) < MAX_CHANGED_FILES:
             response = await self._request(
                 "GET",
-                f"/repos/{repo}/pulls/{pr_number}/files",
+                f"/repos/{safe_repo}/pulls/{pr_number}/files",
                 params={"per_page": 100, "page": page},
             )
             batch = response.json()
@@ -204,9 +220,10 @@ class GitHubApp:
         pulls endpoint creates review comments, which have to be anchored to a
         line of a diff.
         """
+        safe_repo = _safe_repo_path(repo)
         response = await self._request(
             "POST",
-            f"/repos/{repo}/issues/{pr_number}/comments",
+            f"/repos/{safe_repo}/issues/{pr_number}/comments",
             json={"body": body},
         )
         url = response.json().get("html_url", "")
